@@ -1,0 +1,129 @@
+{
+  "projectType": "frontend",
+  "projectName": "Air Tracker",
+  "projectDescription": "Real-time aircraft tracking application with interactive maps, flight filtering, and detailed flight information.",
+  "theme": "palm",
+  "primaryColor": "#3cbcab",
+  "lightColor": "#349b8b",
+  "darkColor": "#949494",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/live-tracking",
+              "features/interactive-map",
+              "features/flight-details",
+              "features/filtering"
+            ]
+          },
+          {
+            "group": "Architecture",
+            "pages": [
+              "architecture/overview",
+              "architecture/state-management",
+              "architecture/api-integration"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Components",
+        "groups": [
+          {
+            "group": "Core Components",
+            "pages": [
+              "components/flights-shell",
+              "components/flights-map",
+              "components/flights-list",
+              "components/flight-detail-panel"
+            ]
+          },
+          {
+            "group": "UI Components",
+            "pages": [
+              "components/airline-display",
+              "components/flight-status-led",
+              "components/filter-menu"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Services",
+            "pages": [
+              "api/flights-api-service",
+              "api/flights-store-service",
+              "api/map-marker-service"
+            ]
+          },
+          {
+            "group": "Models",
+            "pages": [
+              "api/flight-model",
+              "api/flight-dto",
+              "api/flight-filters"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Development",
+        "groups": [
+          {
+            "group": "Setup",
+            "pages": [
+              "development/setup",
+              "development/running-locally",
+              "development/testing"
+            ]
+          },
+          {
+            "group": "Contributing",
+            "pages": [
+              "development/code-style",
+              "development/component-guidelines",
+              "development/contributing"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Real-time flight tracking with automatic polling",
+    "Interactive Leaflet-based map with multiple base layers",
+    "Advanced filtering by airline operator and flight status",
+    "Responsive flight detail panels (desktop) and bottom sheets (mobile)",
+    "Aircraft photo integration",
+    "Smart polling with adaptive intervals based on backend responses"
+  ],
+  "publicApiSurface": [
+    "FlightsApiService.getLiveFlights()",
+    "FlightsApiService.getPhotosByIcao24(icao24: string)",
+    "FlightsStoreService.flights",
+    "FlightsStoreService.selectedFlightId",
+    "FlightsStoreService.filteredFlights",
+    "FlightsStoreService.updateFilters(filters: Partial<FlightFilters>)",
+    "FlightsStoreService.setSelectedFlightId(id: string | null)",
+    "FlightsStoreService.startSmartPolling()",
+    "FlightsMapComponent",
+    "FlightsListComponent",
+    "FlightDetailPanelComponent",
+    "FlightDetailBottomSheetComponent"
+  ]
+}
