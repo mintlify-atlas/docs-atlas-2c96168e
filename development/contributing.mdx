@@ -1,0 +1,430 @@
+---
+title: Contributing Guide
+description: Guidelines for contributing to Air Tracker
+---
+
+Thank you for considering contributing to Air Tracker! This guide will help you understand the contribution process and best practices.
+
+## Getting Started
+
+Before you start contributing:
+
+1. **Read the documentation**: Familiarize yourself with the project
+2. **Set up your environment**: Follow the [Development Setup](/development/setup) guide
+3. **Run the project**: Ensure everything works with [Running Locally](/development/running-locally)
+4. **Understand the code**: Review [Code Style](/development/code-style) and [Component Guidelines](/development/component-guidelines)
+
+## How to Contribute
+
+There are many ways to contribute to Air Tracker:
+
+### Reporting Bugs
+
+If you find a bug:
+
+1. **Check existing issues**: Search for similar issues first
+2. **Provide details**: Include steps to reproduce, expected behavior, and actual behavior
+3. **Include environment info**: OS, browser version, Node.js version
+4. **Add screenshots**: If applicable
+
+### Suggesting Features
+
+To suggest a new feature:
+
+1. **Check existing requests**: Avoid duplicates
+2. **Explain the use case**: Why is this feature valuable?
+3. **Provide examples**: Show how it would work
+4. **Consider alternatives**: Are there existing solutions?
+
+### Contributing Code
+
+Follow these steps to contribute code:
+
+<Steps>
+
+### Fork and Clone
+
+Fork the repository and clone your fork:
+
+<CodeGroup>
+```bash Terminal
+git clone https://github.com/YOUR-USERNAME/air-tracker-frontend.git
+cd air-tracker-frontend
+```
+</CodeGroup>
+
+### Create a Branch
+
+Create a branch for your changes:
+
+<CodeGroup>
+```bash Terminal
+git checkout -b feature/your-feature-name
+```
+</CodeGroup>
+
+See [Branch Naming](#branch-naming) for conventions.
+
+### Make Your Changes
+
+Implement your changes following:
+- [Code Style Guidelines](/development/code-style)
+- [Component Guidelines](/development/component-guidelines)
+- [Testing Best Practices](/development/testing)
+
+### Write Tests
+
+Add or update tests for your changes:
+
+<CodeGroup>
+```bash Terminal
+npm test
+```
+</CodeGroup>
+
+Ensure all tests pass and coverage remains high.
+
+### Lint Your Code
+
+Run the linter and fix any issues:
+
+<CodeGroup>
+```bash Terminal
+npm run lint:fix
+```
+</CodeGroup>
+
+### Commit Your Changes
+
+Commit with a clear message:
+
+<CodeGroup>
+```bash Terminal
+git add .
+git commit -m "feat: add flight altitude filter"
+```
+</CodeGroup>
+
+See [Commit Messages](#commit-messages) for conventions.
+
+### Push to Your Fork
+
+<CodeGroup>
+```bash Terminal
+git push origin feature/your-feature-name
+```
+</CodeGroup>
+
+### Open a Pull Request
+
+1. Go to the original repository
+2. Click "New Pull Request"
+3. Select your fork and branch
+4. Fill out the PR template
+5. Submit the PR
+
+</Steps>
+
+## Branch Naming
+
+Use descriptive branch names with prefixes:
+
+### Branch Prefixes
+
+- `feature/` - New features
+- `fix/` - Bug fixes
+- `refactor/` - Code refactoring
+- `docs/` - Documentation updates
+- `test/` - Test additions or updates
+- `chore/` - Maintenance tasks
+
+### Examples
+
+```bash
+feature/add-altitude-filter
+fix/flight-list-performance
+refactor/signals-migration
+docs/update-testing-guide
+test/add-flights-store-tests
+chore/update-dependencies
+```
+
+### Naming Guidelines
+
+- Use lowercase
+- Use hyphens, not spaces or underscores
+- Be descriptive but concise
+- Reference issue number if applicable: `fix/123-memory-leak`
+
+## Commit Messages
+
+Follow the [Conventional Commits](https://www.conventionalcommits.org/) specification.
+
+### Format
+
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+### Types
+
+- **feat**: New feature
+- **fix**: Bug fix
+- **docs**: Documentation changes
+- **style**: Code style changes (formatting, no logic change)
+- **refactor**: Code refactoring
+- **test**: Adding or updating tests
+- **chore**: Maintenance tasks (dependencies, config)
+- **perf**: Performance improvements
+
+### Examples
+
+```bash
+# Simple feature
+feat: add altitude filter to flights list
+
+# Bug fix with scope
+fix(flights-map): correct marker rotation calculation
+
+# Breaking change
+feat!: migrate to Angular 20 signals
+
+BREAKING CHANGE: Removed InputSignal decorator support
+
+# With issue reference
+fix: prevent memory leak in polling service
+
+Closes #42
+```
+
+### Commit Message Guidelines
+
+- Use imperative mood: "add" not "added" or "adds"
+- Keep subject line under 72 characters
+- Capitalize the subject line
+- Don't end subject with a period
+- Separate subject from body with blank line
+- Wrap body at 72 characters
+- Explain **what** and **why**, not **how**
+
+## Pull Request Process
+
+### PR Title
+
+Use the same format as commit messages:
+
+```
+feat: add altitude filter to flights list
+fix: correct marker rotation calculation
+docs: update testing guide
+```
+
+### PR Description
+
+Include:
+
+1. **Summary**: What does this PR do?
+2. **Motivation**: Why is this change needed?
+3. **Changes**: What was changed?
+4. **Testing**: How was this tested?
+5. **Screenshots**: If UI changes
+6. **Related Issues**: Link to issues
+
+### PR Template Example
+
+```markdown
+## Summary
+Adds an altitude filter to the flights list, allowing users to filter flights by altitude range.
+
+## Motivation
+Users requested the ability to filter flights by altitude to focus on specific flight patterns.
+
+## Changes
+- Added altitude range slider to filters menu
+- Updated FlightsStoreService to include altitude filter
+- Added altitude filter tests
+
+## Testing
+- Unit tests: All passing
+- Manual testing: Tested on desktop and mobile
+- Browser testing: Chrome, Firefox, Safari
+
+## Screenshots
+[Include screenshots here]
+
+## Related Issues
+Closes #123
+```
+
+### PR Checklist
+
+Before submitting, ensure:
+
+- [ ] Code follows [style guidelines](/development/code-style)
+- [ ] All tests pass: `npm test`
+- [ ] Linter passes: `npm run lint`
+- [ ] New code has tests
+- [ ] Documentation is updated
+- [ ] Commit messages follow conventions
+- [ ] PR title follows conventions
+- [ ] PR description is complete
+
+## Code Review Guidelines
+
+### For Contributors
+
+When receiving feedback:
+
+- **Be responsive**: Reply to comments promptly
+- **Be open**: Consider suggestions with an open mind
+- **Ask questions**: If feedback is unclear
+- **Make changes**: Address all requested changes
+- **Test again**: After making changes
+- **Update PR**: Push new commits or force-push if rebasing
+
+### For Reviewers
+
+When reviewing:
+
+- **Be respectful**: Provide constructive feedback
+- **Be specific**: Point to exact lines
+- **Explain why**: Don't just say what's wrong
+- **Suggest solutions**: Provide examples
+- **Approve when ready**: Once all concerns are addressed
+
+## Development Workflow
+
+### Keep Your Fork Updated
+
+Regularly sync with the main repository:
+
+<CodeGroup>
+```bash Terminal
+git remote add upstream https://github.com/ORIGINAL-OWNER/air-tracker-frontend.git
+git fetch upstream
+git checkout main
+git merge upstream/main
+git push origin main
+```
+</CodeGroup>
+
+### Rebase Before Merging
+
+Rebase your feature branch before submitting PR:
+
+<CodeGroup>
+```bash Terminal
+git checkout feature/your-feature
+git rebase main
+git push --force-with-lease origin feature/your-feature
+```
+</CodeGroup>
+
+### Handle Merge Conflicts
+
+If conflicts occur:
+
+1. Rebase on latest main
+2. Resolve conflicts locally
+3. Test after resolving
+4. Force push to your branch
+
+## Code Quality Standards
+
+### Required Checks
+
+All PRs must pass:
+
+1. **Linting**: ESLint with Angular rules
+2. **Type checking**: TypeScript strict mode
+3. **Tests**: All unit tests
+4. **Build**: Production build succeeds
+
+### Recommended Practices
+
+- **Write tests first**: Test-driven development
+- **Keep PRs small**: Easier to review
+- **One concern per PR**: Single responsibility
+- **Update docs**: Keep documentation current
+- **Add comments**: Explain complex logic
+
+## Testing Requirements
+
+### Test Coverage
+
+Maintain test coverage:
+
+- **Statements**: 80%+
+- **Branches**: 75%+
+- **Functions**: 80%+
+- **Lines**: 80%+
+
+### Test Types
+
+1. **Unit tests**: For all new components and services
+2. **Integration tests**: For feature interactions
+3. **Manual testing**: On different browsers and devices
+
+See [Testing Guide](/development/testing) for details.
+
+## Documentation
+
+### When to Update Docs
+
+Update documentation when:
+
+- Adding new features
+- Changing APIs
+- Modifying configuration
+- Updating dependencies
+- Adding new patterns
+
+### Documentation Standards
+
+- Use clear, concise language
+- Include code examples
+- Add screenshots for UI changes
+- Update all affected pages
+- Check for broken links
+
+## Getting Help
+
+### Resources
+
+- **Documentation**: Read the full development docs
+- **Issues**: Search existing issues
+- **Discussions**: Join project discussions
+- **Code**: Review existing code for patterns
+
+### Ask Questions
+
+Don't hesitate to ask:
+
+- Open an issue for clarification
+- Comment on existing issues
+- Reach out to maintainers
+
+## License
+
+By contributing, you agree that your contributions will be licensed under the same license as the project.
+
+## Recognition
+
+Contributors are recognized:
+
+- In release notes
+- In the contributors list
+- In commit history
+
+Thank you for contributing to Air Tracker!
+
+## Next Steps
+
+- Review [development setup](/development/setup)
+- Read [code style guidelines](/development/code-style)
+- Explore [component guidelines](/development/component-guidelines)
+- Check out [testing guide](/development/testing)

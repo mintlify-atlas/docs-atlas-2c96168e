@@ -1,0 +1,334 @@
+---
+title: 'MapMarkerService'
+description: 'Manages Leaflet map markers for flight visualization with smooth animations'
+icon: 'map-pin'
+---
+
+## Overview
+
+`MapMarkerService` manages the creation, update, and animation of aircraft markers on the Leaflet map. It handles:
+
+- Creating custom plane icons with rotation and status indicators
+- Smooth marker animations between position updates
+- Click event handling for flight selection
+- Intelligent filtering of invalid position updates
+- Marker lifecycle management (creation and cleanup)
+
+The service uses the `leaflet-moving-rotated-marker` plugin to provide smooth, animated transitions between flight positions.
+
+## Location
+
+```
+src/app/features/flights/services/map-marker.service.ts
+```
+
+## Methods
+
+### makePlaneIcon()
+
+Creates a custom Leaflet DivIcon for displaying aircraft on the map. The icon includes rotation, status classes, and selection state.
+
+<ParamField path="flight" type="Flight" required>
+  Flight object containing aircraft data including ground status
+</ParamField>
+
+<ParamField path="selected" type="boolean" required>
+  Whether this flight is currently selected
+</ParamField>
+
+<ParamField path="Returns" type="L.DivIcon">
+  Leaflet DivIcon with appropriate classes and SVG content
+</ParamField>
+
+**Icon Classes:**
+- `plane-marker` - Base class for all plane icons
+- `plane--air` - Applied when flight is in the air
+- `plane--ground` - Applied when flight is on the ground
+- `is-selected` - Applied when flight is selected
+
+**Signature:**
+```typescript
+makePlaneIcon(flight: Flight, selected: boolean): L.DivIcon
+```
+
+**Usage Example:**
+```typescript
+const icon = this.mapMarkerService.makePlaneIcon(flight, false);
+const marker = L.marker([lat, lng], { 
+  icon,
+  rotationAngle: flight.heading ?? 0 
+});
+```
+
+**Source:** `map-marker.service.ts:31-49`
+
+### updateMarkers()
+
+Updates all flight markers on the map. This method:
+- Removes markers for flights that no longer exist
+- Creates new markers for new flights
+- Animates existing markers to new positions
+- Applies intelligent filtering to reject invalid position updates
+
+<ParamField path="flights" type="Flight[]" required>
+  Array of current flights to display on the map
+</ParamField>
+
+<ParamField path="markersLayer" type="L.LayerGroup" required>
+  Leaflet layer group to add/remove markers from
+</ParamField>
+
+**Signature:**
+```typescript
+updateMarkers(flights: Flight[], markersLayer: L.LayerGroup): void
+```
+
+**Animation Parameters:**
+- **Duration:** 12000ms (12 seconds) for smooth movement
+- **Easing:** 'easeInOutQuart' for natural acceleration/deceleration
+- **Rotation:** Synchronized with marker movement
+
+**Usage Example:**
+```typescript
+import { Component, effect, inject } from '@angular/core';
+import { MapMarkerService } from '../services/map-marker.service';
+import * as L from 'leaflet';
+
+@Component({
+  selector: 'app-flights-map',
+  // ...
+})
+export class FlightsMapComponent {
+  private readonly markerService = inject(MapMarkerService);
+  private markersLayer: L.LayerGroup = L.layerGroup();
+
+  constructor() {
+    effect(() => {
+      const flights = this.flights();
+      if (this.map) {
+        this.markerService.updateMarkers(flights, this.markersLayer);
+      }
+    });
+  }
+}
+```
+
+**Source:** `map-marker.service.ts:51-109`
+
+### updateIcons()
+
+Updates marker icons to reflect selection state. Resets all markers to normal state, then applies selected styling to the currently selected flight.
+
+<ParamField path="flights" type="Flight[]" required>
+  Array of all flights
+</ParamField>
+
+<ParamField path="selectedId" type="string | null" required>
+  ICAO24 identifier of the selected flight, or null if none selected
+</ParamField>
+
+**Signature:**
+```typescript
+updateIcons(flights: Flight[], selectedId: string | null): void
+```
+
+**Usage Example:**
+```typescript
+import { Component, effect, inject } from '@angular/core';
+import { MapMarkerService } from '../services/map-marker.service';
+import { FlightsStoreService } from '../services/flights-store.service';
+
+@Component({
+  selector: 'app-flights-map',
+  // ...
+})
+export class FlightsMapComponent {
+  private readonly markerService = inject(MapMarkerService);
+  private readonly store = inject(FlightsStoreService);
+
+  constructor() {
+    effect(() => {
+      const selectedId = this.store.selectedFlightId();
+      const flights = this.flights();
+      
+      if (this.map && flights.length) {
+        this.markerService.updateIcons(flights, selectedId);
+      }
+    });
+  }
+}
+```
+
+**Source:** `map-marker.service.ts:134-152`
+
+## Position Update Filtering
+
+The service includes intelligent filtering to reject invalid position updates. This prevents unrealistic jumps and ensures smooth animations.
+
+### Rejection Criteria
+
+**Outdated Positions** (from `shouldAcceptUpdate()` at `map-marker.service.ts:169-207`):
+- Rejects updates with older timestamps than current position
+
+**Duplicate Positions:**
+- Rejects updates less than 500 meters from current position
+
+**Unrealistic Speed:**
+- Calculates implied speed between positions using Haversine formula
+- Rejects updates implying speed > 1300 km/h
+
+### Haversine Distance Calculation
+
+The service uses the Haversine formula to calculate great-circle distances between coordinates:
+
+```typescript
+private haversineKm(
+  lat1: number, 
+  lon1: number, 
+  lat2: number, 
+  lon2: number
+): number {
+  const toRad = (v: number) => v * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * 
+    Math.sin(dLon / 2) ** 2;
+  
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  
+  return EARTH_RADIUS_KM * c;  // 6371 km
+}
+```
+
+**Source:** `map-marker.service.ts:158-167`
+
+## Real-World Usage
+
+From `flights-map.component.ts:22-47`, here's the complete integration:
+
+```typescript
+import { 
+  Component, 
+  effect, 
+  inject, 
+  AfterViewInit, 
+  OnDestroy 
+} from '@angular/core';
+import * as L from 'leaflet';
+import 'leaflet-moving-rotated-marker';
+import { MapMarkerService } from '../services/map-marker.service';
+import { FlightsStoreService } from '../services/flights-store.service';
+import { Flight } from '../models/flight.model';
+
+@Component({
+  selector: 'app-flights-map',
+  // ...
+})
+export class FlightsMapComponent implements AfterViewInit, OnDestroy {
+  flights = input<Flight[]>([]);
+  
+  private readonly markerService = inject(MapMarkerService);
+  private readonly store = inject(FlightsStoreService);
+  
+  private map!: L.Map;
+  private markersLayer: L.LayerGroup = L.layerGroup();
+
+  constructor() {
+    // Update marker positions when flights change
+    effect(() => {
+      const flights = this.flights();
+      if (this.map) {
+        this.markerService.updateMarkers(flights, this.markersLayer);
+      }
+    });
+
+    // Update marker icons when selection changes
+    effect(() => {
+      const selectedId = this.store.selectedFlightId();
+      const flights = this.flights();
+      
+      if (this.map && flights.length) {
+        this.markerService.updateIcons(flights, selectedId);
+      }
+    });
+  }
+
+  ngAfterViewInit(): void {
+    this.initiateMap();
+    
+    // Initial marker creation after map is ready
+    setTimeout(() => {
+      const flights = this.flights();
+      if (flights.length) {
+        this.markerService.updateMarkers(flights, this.markersLayer);
+      }
+    }, 50);
+  }
+
+  ngOnDestroy(): void {
+    if (this.map) {
+      this.map.remove();
+    }
+  }
+
+  private initiateMap(): void {
+    this.map = L.map('map', {
+      center: [40, 0],
+      zoom: 6,
+      zoomControl: false,
+    });
+    
+    this.markersLayer.addTo(this.map);
+  }
+}
+```
+
+## Marker Click Handling
+
+Markers automatically handle click events to toggle flight selection (from `map-marker.service.ts:77-84`):
+
+```typescript
+marker.on('click', () => {
+  const currentSelected = this.store.selectedFlightId();
+  
+  if (currentSelected === flight.icao24) {
+    // Clicking selected flight deselects it
+    this.store.clearSelection();
+  } else {
+    // Clicking unselected flight selects it
+    this.store.setSelectedFlightId(flight.icao24);
+  }
+});
+```
+
+## Internal State
+
+The service maintains an internal Map of markers:
+
+```typescript
+private markers = new Map<string, L.Marker>();
+```
+
+- **Key:** Flight ICAO24 identifier
+- **Value:** Leaflet Marker instance
+
+This allows efficient lookup and updates without recreating markers unnecessarily.
+
+## Dependencies
+
+The service automatically injects:
+
+- `FlightsStoreService` - For accessing selected flight state
+
+External dependencies:
+- `leaflet` - Map and marker functionality
+- `leaflet-moving-rotated-marker` - Smooth animated transitions
+
+## See Also
+
+- [FlightsStoreService](/api/flights-store-service) - State management service that provides flight data
+- [Flight Model](/api/flight-model) - Structure of flight data used by markers
+- [Leaflet Documentation](https://leafletjs.com/) - Core mapping library

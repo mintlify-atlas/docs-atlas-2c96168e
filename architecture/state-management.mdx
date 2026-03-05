@@ -1,0 +1,583 @@
+---
+title: 'State Management'
+description: 'Signal-based reactive state management with FlightsStoreService'
+---
+
+# State Management
+
+Air Tracker uses Angular's **signals** for state management, providing a modern reactive approach with automatic change detection optimization and a simpler mental model compared to RxJS-based patterns.
+
+## FlightsStoreService Design
+
+The `FlightsStoreService` is the single source of truth for all flight-related state. It follows a **reactive store pattern** using Angular signals.
+
+### Service Overview
+
+```typescript
+// features/flights/services/flights-store.service.ts:13
+@Injectable({ providedIn: 'root' })
+export class FlightsStoreService {
+  // Private writable signals (internal state)
+  private readonly _flights = signal<Flight[]>([]);
+  private readonly _selectedFlightId = signal<string | null>(null);
+  private readonly _loading = signal(false);
+  private readonly _error = signal<string | null>(null);
+  private readonly _filters = signal<FlightFilters>({
+    operator: null,
+    onGround: 'all'
+  });
+  
+  // Public readonly signals (exposed to components)
+  readonly flights = this._flights.asReadonly();
+  readonly selectedFlightId = this._selectedFlightId.asReadonly();
+  readonly loading = this._loading.asReadonly();
+  readonly error = this._error.asReadonly();
+  
+  // Computed signals (derived state)
+  readonly operatorList = computed(() => { /* ... */ });
+  readonly filteredFlights = computed(() => { /* ... */ });
+}
+```
+
+<Info>
+**Singleton Pattern**: The service uses `providedIn: 'root'`, ensuring a single instance is shared across the entire application. This guarantees consistent state across all components.
+</Info>
+
+## State Architecture
+
+The store is organized into six logical sections (documented in code comments):
+
+### 1. Injected Services
+
+```typescript
+private readonly api = inject(FlightsApiService);
+```
+
+Dependencies are injected using the modern `inject()` function for better tree-shaking.
+
+### 2. Polling Control
+
+```typescript
+private pollingTimeoutId?: ReturnType<typeof setTimeout>;
+private activePollSub: Subscription | null = null;
+```
+
+Non-signal state for managing polling lifecycle (cleanup resources).
+
+### 3. Private State (Writable Signals)
+
+```typescript
+private readonly _flights = signal<Flight[]>([]);
+private readonly _selectedFlightId = signal<string | null>(null);
+private readonly _loading = signal(false);
+private readonly _error = signal<string | null>(null);
+private readonly _warning = signal<string | null>(null);
+private readonly _lastUpdated = signal<Date | null>(null);
+private readonly _cacheAgeMs = signal<number>(0);
+private readonly _nextUpdateInMs = signal<number>(0);
+private readonly _nextUpdateAtMs = signal<number | null>(null);
+private readonly _currentPollingIntervalMs = signal<number>(8000);
+private readonly _filters = signal<FlightFilters>({
+  operator: null,
+  onGround: 'all'
+});
+```
+
+All writable signals are **private** and prefixed with `_`. This encapsulation prevents external mutation.
+
+### 4. Public State (Readonly Signals)
+
+```typescript
+readonly flights = this._flights.asReadonly();
+readonly selectedFlightId = this._selectedFlightId.asReadonly();
+readonly loading = this._loading.asReadonly();
+readonly error = this._error.asReadonly();
+readonly warning = this._warning.asReadonly();
+readonly lastUpdated = this._lastUpdated.asReadonly();
+// ... etc
+```
+
+Public signals are **readonly**, ensuring components can read but not directly modify state.
+
+<Note>
+**Design Pattern**: This public/private signal pattern ensures unidirectional data flow. Components must use action methods to update state, making state changes explicit and traceable.
+</Note>
+
+### 5. Derived State (Computed Signals)
+
+```typescript
+// features/flights/services/flights-store.service.ts:68
+readonly operatorList = computed(() => {
+  const flights = this._flights();
+  const operators = flights
+    .map(f => f.operator === null ? 'Other' : f.operator)
+    .filter(Boolean);
+
+  return [...new Set(operators)].sort((a, b) => {
+    if (a === 'Other' && b !== 'Other') return 1;
+    if (b === 'Other' && a !== 'Other') return -1;
+    if (a === 'Other' && b === 'Other') return 0;
+    return a.localeCompare(b, undefined, { sensitivity: 'base' });
+  });
+});
+```
+
+This computed signal:
+- Automatically updates when `_flights` changes
+- Returns unique operators for filter dropdown
+- Transforms `null` operators to `'Other'`
+- Sorts alphabetically with `'Other'` at the end
+- **Memoizes** results - only recalculates when dependencies change
+
+#### Filtered Flights Computed Signal
+
+```typescript
+// features/flights/services/flights-store.service.ts:87
+readonly filteredFlights = computed(() => {
+  const allFlights = this._flights();
+  const { operator, onGround } = this._filters();
+
+  return allFlights.filter(flight => {
+    // Filter by operator
+    if (!operator || operator === '') return true;
+
+    if (operator === 'Other') {
+      return flight.operator == null || flight.operator === '';
+    }
+
+    return flight.operator === operator;
+  }).filter(flight => {
+    // Filter by ground status
+    if (onGround === 'all') return true;
+    if (onGround === 'flying') return !flight.onGround;
+    if (onGround === 'onGround') return flight.onGround;
+    return true;
+  });
+});
+```
+
+This computed signal:
+- Depends on **two** signals: `_flights` and `_filters`
+- Automatically recalculates when either changes
+- Chains two filter operations (operator + ground status)
+- Used by both map and list components for consistent data
+
+<Warning>
+**Performance Consideration**: Computed signals are highly optimized. The filtering logic only runs when `_flights` or `_filters` change, not on every change detection cycle. This is more efficient than using getters or pipes.
+</Warning>
+
+### 6. Public Actions
+
+Actions are the **only** way components should modify state:
+
+```typescript
+// features/flights/services/flights-store.service.ts:118
+updateFilters(newFilters: Partial<FlightFilters>): void {
+  this._filters.update(current => ({ ...current, ...newFilters }));
+}
+
+setSelectedFlightId(id: string | null): void {
+  this._selectedFlightId.set(id);
+}
+
+clearSelection(): void {
+  this._selectedFlightId.set(null);
+}
+
+startSmartPolling(): void {
+  this.stopPolling();
+  this.poll();
+}
+
+stopPolling(): void {
+  if (this.pollingTimeoutId) {
+    clearTimeout(this.pollingTimeoutId);
+    this.pollingTimeoutId = undefined;
+  }
+  this.activePollSub?.unsubscribe();
+  this.activePollSub = null;
+  this._loading.set(false);
+}
+```
+
+#### Signal Update Patterns
+
+**Direct Set** (for simple replacements):
+```typescript
+this._selectedFlightId.set(id);
+this._loading.set(false);
+```
+
+**Update Function** (for partial updates):
+```typescript
+this._filters.update(current => ({ ...current, ...newFilters }));
+```
+
+The `update()` method provides the current value and expects a new value, perfect for immutable updates.
+
+<Info>
+**Immutability**: Although signals allow mutation, we follow immutable update patterns (spread operators) for consistency and predictability.
+</Info>
+
+## Smart Polling Implementation
+
+One of the most sophisticated aspects of the state management is the **adaptive polling system**.
+
+### Polling Architecture
+
+```typescript
+// features/flights/services/flights-store.service.ts:175
+private poll(): void {
+  this._loading.set(true);
+
+  this.activePollSub?.unsubscribe();
+  this.activePollSub = null;
+
+  this.activePollSub = this.api.getLiveFlights()
+    .pipe(
+      catchError((err: unknown) => {
+        console.error('❌ Polling failed:', err);
+        this._error.set('Error fetching flights');
+        this._loading.set(false);
+        this._warning.set(null);
+
+        // Retry after 15 seconds on error
+        this.pollingTimeoutId = setTimeout(() => this.poll(), 15000);
+        return of(null);
+      })
+    )
+    .subscribe(response => {
+      if (!response) return;
+
+      this._error.set(null);
+      this.updateStoreFromResponse(response);
+
+      // Calculate next poll interval from response
+      const nextPollMs = this.calculateNextPollInterval(response);
+      this.pollingTimeoutId = setTimeout(() => this.poll(), nextPollMs);
+    });
+}
+```
+
+### Polling Strategy
+
+1. **Recursive Timeout Pattern**: Uses `setTimeout` instead of `interval` for precise control
+2. **Adaptive Intervals**: Polling frequency adjusts based on backend response
+3. **Error Recovery**: 15-second retry on failures
+4. **Subscription Cleanup**: Cancels previous requests before starting new ones
+5. **Loading State**: Sets loading before request, clears after response/error
+
+<Note>
+**Why setTimeout over interval?**
+
+`setTimeout` ensures the next poll doesn't start until the previous completes. This prevents request pileup if responses are slow. The interval is measured **between requests**, not **start-to-start**.
+</Note>
+
+### Backend-Driven Intervals
+
+```typescript
+// features/flights/services/flights-store.service.ts:231
+private calculateNextPollInterval(response: FlightResponseDto): number {
+  const nextPollMs = response.nextUpdateInMs
+    ?? response.pollingIntervalMs
+    ?? 8000;  // Default fallback
+
+  this._nextUpdateInMs.set(nextPollMs);
+  this._nextUpdateAtMs.set(Date.now() + nextPollMs);
+  if (response.pollingIntervalMs) {
+    this._currentPollingIntervalMs.set(response.pollingIntervalMs);
+  }
+
+  return nextPollMs;
+}
+```
+
+The backend can control polling behavior via response fields:
+- `nextUpdateInMs` - Specific time until next update
+- `pollingIntervalMs` - General polling interval
+- Falls back to 8 seconds if neither provided
+
+<Warning>
+**Cache Age Warning**
+
+The store monitors cache age and displays a warning if data is stale:
+
+```typescript
+if (cacheAgeMs > 30000) {
+  const cacheAgeSec = Math.round(cacheAgeMs / 1000);
+  this._warning.set(`⚠️ Data from ${cacheAgeSec}s ago (may be outdated)`);
+} else {
+  this._warning.set(null);
+}
+```
+
+This provides user feedback when backend data is outdated.
+</Warning>
+
+### Response Processing
+
+```typescript
+// features/flights/services/flights-store.service.ts:208
+private updateStoreFromResponse(response: FlightResponseDto): void {
+  const flights = response.flights.map(mapFlightDtoToFlight);
+  const cacheAgeMs = response.cacheAgeMs ?? 0;
+
+  this._flights.set(flights);
+  this._cacheAgeMs.set(cacheAgeMs);
+  this._lastUpdated.set(new Date());
+  this._loading.set(false);
+
+  if (cacheAgeMs > 30000) {
+    const cacheAgeSec = Math.round(cacheAgeMs / 1000);
+    this._warning.set(`⚠️ Data from ${cacheAgeSec}s ago (may be outdated)`);
+  } else {
+    this._warning.set(null);
+  }
+}
+```
+
+This method:
+1. Maps DTOs to domain models
+2. Updates multiple signals atomically
+3. Sets cache metadata for UI feedback
+4. Determines warning state based on cache age
+
+## Component Integration
+
+Components consume store state via readonly signals and Angular effects:
+
+### Reading State
+
+```typescript
+// In components
+export class FlightsListComponent {
+  store = inject(FlightsStoreService);
+  
+  constructor() {
+    effect(() => {
+      // Automatically runs when filteredFlights changes
+      this.dataSource.data = this.store.filteredFlights();
+    });
+  }
+}
+```
+
+```typescript
+// In templates
+<div *ngIf="store.loading()">
+  <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+</div>
+
+<div *ngIf="store.error()" class="error">
+  {{ store.error() }}
+</div>
+
+<div *ngIf="store.warning()" class="warning">
+  {{ store.warning() }}
+</div>
+```
+
+### Dispatching Actions
+
+```typescript
+// User clicks a row
+handleRowClicked(flightId: string): void {
+  if (this.store.selectedFlightId() === flightId) {
+    this.store.clearSelection();
+  } else {
+    this.store.setSelectedFlightId(flightId);
+  }
+}
+
+// User changes filter
+onOperatorChange(operator: string | null): void {
+  this.store.updateFilters({ operator });
+}
+
+onGroundStatusChange(onGround: 'all' | 'flying' | 'onGround'): void {
+  this.store.updateFilters({ onGround });
+}
+```
+
+<Info>
+**Effects vs Subscriptions**
+
+Angular effects are preferred over RxJS subscriptions for reacting to signal changes:
+- Automatically managed lifecycle (no manual cleanup)
+- Run in injection context
+- Support dependencies between effects
+- Cleaner syntax
+</Info>
+
+## Effects for Side Effects
+
+Effects enable reactive side effects in response to signal changes:
+
+```typescript
+// features/flights/flights-shell/flights-shell.component.ts:73
+constructor() {
+  // Effect 1: Open/close detail UI when selection changes
+  effect(() => {
+    const selectedId = this.store.selectedFlightId();
+    const viewportMode = this.viewport.mode();
+
+    const changed =
+      selectedId !== this.lastSelectedId || viewportMode !== this.lastViewportMode;
+
+    if (!changed) return;
+
+    this.lastSelectedId = selectedId;
+    this.lastViewportMode = viewportMode;
+
+    if (selectedId) {
+      this.openFlightDetailUI(selectedId);
+    } else {
+      this.closeFlightDetailUI();
+    }
+  });
+  
+  // Effect 2: Clear selection if filtered out
+  effect(() => {
+    const selectedId = this.store.selectedFlightId();
+    if (!selectedId) return;
+
+    const visible = this.store.filteredFlights().some(f => f.icao24 === selectedId);
+    if (!visible) {
+      this.store.clearSelection();
+    }
+  });
+}
+```
+
+These effects handle:
+1. **Responsive Detail Views**: Switches between overlay/bottom sheet based on viewport
+2. **Filter Sync**: Clears selection if the selected flight gets filtered out
+
+<Warning>
+**Effect Performance**: The first effect uses manual change tracking (`lastSelectedId`, `lastViewportMode`) to prevent unnecessary DOM operations. Without this, the effect would run on every change detection, even when values haven't changed.
+</Warning>
+
+## State Update Patterns
+
+Common patterns for updating store state:
+
+### Pattern 1: Simple Toggle
+```typescript
+toggleSelection(id: string): void {
+  if (this._selectedFlightId() === id) {
+    this._selectedFlightId.set(null);
+  } else {
+    this._selectedFlightId.set(id);
+  }
+}
+```
+
+### Pattern 2: Partial Object Update
+```typescript
+updateFilters(newFilters: Partial<FlightFilters>): void {
+  this._filters.update(current => ({ ...current, ...newFilters }));
+}
+```
+
+### Pattern 3: Array Transformation
+```typescript
+private updateStoreFromResponse(response: FlightResponseDto): void {
+  const flights = response.flights.map(mapFlightDtoToFlight);
+  this._flights.set(flights);
+}
+```
+
+### Pattern 4: Multi-Signal Atomic Update
+```typescript
+private updateStoreFromResponse(response: FlightResponseDto): void {
+  this._flights.set(flights);
+  this._cacheAgeMs.set(cacheAgeMs);
+  this._lastUpdated.set(new Date());
+  this._loading.set(false);
+  // All updates happen synchronously, triggering one change detection
+}
+```
+
+<Note>
+Multiple signal updates in the same synchronous block batch into a single change detection cycle, optimizing performance.
+</Note>
+
+## Type Safety
+
+The store maintains strong typing throughout:
+
+```typescript
+// FlightFilters type
+export interface FlightFilters {
+  operator: string | null;
+  onGround: 'all' | 'flying' | 'onGround';
+}
+
+// Signal types are inferred
+private readonly _filters = signal<FlightFilters>({ /* ... */ });
+readonly filteredFlights = computed<Flight[]>(() => { /* ... */ });
+```
+
+TypeScript ensures:
+- Invalid filter values are caught at compile time
+- Signal types propagate through computed signals
+- Action method parameters are validated
+
+## Benefits of Signal-Based State Management
+
+<Info>
+**Advantages over Traditional Approaches:**
+
+1. **Automatic Change Detection**: Signals notify Angular when values change, enabling fine-grained reactivity
+2. **No Subscription Management**: Unlike Observables, signals don't require manual cleanup
+3. **Synchronous by Default**: Read signal values synchronously with `()`
+4. **Computed Memoization**: Computed signals cache results and only recalculate when dependencies change
+5. **Type Inference**: Better TypeScript support than many Observable patterns
+6. **Developer Experience**: Simpler mental model, less boilerplate
+7. **Performance**: Fine-grained reactivity updates only affected components
+</Info>
+
+## Testing State Management
+
+The signal-based architecture is highly testable:
+
+```typescript
+describe('FlightsStoreService', () => {
+  let service: FlightsStoreService;
+  
+  beforeEach(() => {
+    TestBed.configureTestingModule({});
+    service = TestBed.inject(FlightsStoreService);
+  });
+  
+  it('should update filters', () => {
+    service.updateFilters({ operator: 'Test Airline' });
+    
+    // Signals are synchronous
+    expect(service.filteredFlights()).toEqual(/* expected data */);
+  });
+  
+  it('should compute operator list', () => {
+    // Computed signals update immediately
+    const operators = service.operatorList();
+    expect(operators).toContain('Other');
+  });
+});
+```
+
+No need for async/await or fakeAsync - signals update synchronously!
+
+## Future Enhancements
+
+Potential improvements to the state management:
+
+1. **Persistence**: Save filters to localStorage
+2. **Undo/Redo**: Implement state history with signal-based time travel
+3. **Optimistic Updates**: Update UI before API confirmation
+4. **State Sync**: Share state across browser tabs with BroadcastChannel
+5. **DevTools**: Create signal debugging tools for development
+
+## Related Documentation
+
+- [Architecture Overview](/architecture/overview) - High-level application structure
+- [API Integration](/architecture/api-integration) - Backend communication patterns

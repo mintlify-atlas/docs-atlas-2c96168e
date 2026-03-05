@@ -1,122 +1,124 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Air Tracker",
+  "theme": "palm",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#3cbcab",
+    "light": "#349b8b",
+    "dark": "#949494"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "https://media.brand.dev/14065439-4e90-453d-9313-fb79567cf87e.png",
+  "logo": {
+    "light": "https://media.brand.dev/51cf6166-78ff-49de-9642-65243a45cb9b.png",
+    "dark": "https://media.brand.dev/51cf6166-78ff-49de-9642-65243a45cb9b.png"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/EduGese/air-tracker-frontend"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/EduGese/air-tracker-frontend"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Getting Started",
             "pages": [
-              "index",
+              "introduction",
               "quickstart",
-              "development"
+              "installation"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Features",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "features/live-tracking",
+              "features/interactive-map",
+              "features/flight-details",
+              "features/filtering"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Architecture",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
-            ]
-          },
-          {
-            "group": "AI tools",
-            "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "architecture/overview",
+              "architecture/state-management",
+              "architecture/api-integration"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "Components",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Core Components",
             "pages": [
-              "api-reference/introduction"
+              "components/flights-shell",
+              "components/flights-map",
+              "components/flights-list",
+              "components/flight-detail-panel"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "UI Components",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "components/airline-display",
+              "components/flight-status-led",
+              "components/filter-menu"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Services",
+            "pages": [
+              "api/flights-api-service",
+              "api/flights-store-service",
+              "api/map-marker-service"
+            ]
+          },
+          {
+            "group": "Models",
+            "pages": [
+              "api/flight-model",
+              "api/flight-dto",
+              "api/flight-filters"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Development",
+        "groups": [
+          {
+            "group": "Setup",
+            "pages": [
+              "development/setup",
+              "development/running-locally",
+              "development/testing"
+            ]
+          },
+          {
+            "group": "Contributing",
+            "pages": [
+              "development/code-style",
+              "development/component-guidelines",
+              "development/contributing"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

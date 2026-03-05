@@ -1,0 +1,331 @@
+---
+title: Running Locally
+description: Learn how to run Air Tracker locally for development
+---
+
+This guide covers how to run, build, and develop the Air Tracker application locally.
+
+## Available npm Scripts
+
+Air Tracker includes several npm scripts for common development tasks. These are defined in `package.json`:
+
+```json
+"scripts": {
+  "ng": "ng",
+  "start": "ng serve",
+  "build": "ng build",
+  "watch": "ng build --watch --configuration development",
+  "test": "ng test",
+  "lint": "ng lint",
+  "lint:fix": "ng lint --fix",
+  "generate-logos": "node scripts/generate-logos.js"
+}
+```
+
+## Development Server
+
+### Starting the Server
+
+To start the development server:
+
+<CodeGroup>
+```bash npm
+npm start
+```
+
+```bash Angular CLI
+ng serve
+```
+</CodeGroup>
+
+The application will be available at `http://localhost:4200/`.
+
+### Development Features
+
+When running in development mode, you get:
+
+- **Hot Module Replacement (HMR)** - Automatically reloads when you save changes
+- **Source Maps** - Debug TypeScript code directly in the browser
+- **Detailed Error Messages** - Comprehensive error information
+- **No Optimization** - Faster builds for quicker feedback
+
+The development configuration is defined in `angular.json`:
+
+```json
+"development": {
+  "optimization": false,
+  "extractLicenses": false,
+  "sourceMap": true
+}
+```
+
+### Custom Port
+
+Run on a different port:
+
+<CodeGroup>
+```bash Terminal
+ng serve --port 4201
+```
+</CodeGroup>
+
+### Open Browser Automatically
+
+<CodeGroup>
+```bash Terminal
+ng serve --open
+```
+</CodeGroup>
+
+## Building the Application
+
+### Production Build
+
+Create an optimized production build:
+
+<CodeGroup>
+```bash npm
+npm run build
+```
+
+```bash Angular CLI
+ng build
+```
+</CodeGroup>
+
+The build artifacts will be stored in the `dist/` directory.
+
+### Production Build Features
+
+- **Optimization** - Minified and tree-shaken code
+- **AOT Compilation** - Ahead-of-time compilation for better performance
+- **Output Hashing** - Cache-busting filenames
+- **Bundle Budgets** - Enforced size limits
+
+Bundle budgets from `angular.json`:
+
+```json
+"budgets": [
+  {
+    "type": "initial",
+    "maximumWarning": "1MB",
+    "maximumError": "2MB"
+  },
+  {
+    "type": "anyComponentStyle",
+    "maximumWarning": "4kB",
+    "maximumError": "8kB"
+  }
+]
+```
+
+### Development Build
+
+Create a development build without optimization:
+
+<CodeGroup>
+```bash Terminal
+ng build --configuration development
+```
+</CodeGroup>
+
+## Watch Mode
+
+Watch mode rebuilds your application whenever files change:
+
+<CodeGroup>
+```bash npm
+npm run watch
+```
+
+```bash Angular CLI
+ng build --watch --configuration development
+```
+</CodeGroup>
+
+This is useful when:
+- Testing builds without running a server
+- Integrating with external tools
+- Debugging build issues
+
+## Debugging
+
+### Browser DevTools
+
+1. Open Chrome/Firefox DevTools (F12)
+2. Navigate to the **Sources** tab
+3. Find your TypeScript files under `webpack://` → `.` → `src`
+4. Set breakpoints directly in TypeScript code
+
+### VS Code Debugging
+
+Create `.vscode/launch.json`:
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "Launch Chrome against localhost",
+      "url": "http://localhost:4200",
+      "webRoot": "${workspaceFolder}",
+      "sourceMapPathOverrides": {
+        "webpack:///./*": "${webRoot}/*"
+      }
+    }
+  ]
+}
+```
+
+Then:
+1. Start the dev server: `npm start`
+2. Press F5 in VS Code to launch Chrome with debugging
+3. Set breakpoints in your TypeScript files
+
+### Console Logging
+
+The application uses structured logging. Example from the codebase:
+
+```typescript
+// flights-store.service.ts:184
+catchError((err: unknown) => {
+  console.error('❌ Polling failed:', err);
+  this._error.set('Error fetching flights');
+  // ...
+})
+```
+
+## Running Tests
+
+Run unit tests while developing:
+
+<CodeGroup>
+```bash npm
+npm test
+```
+
+```bash Angular CLI
+ng test
+```
+</CodeGroup>
+
+See the [Testing Guide](/development/testing) for more details.
+
+## Linting
+
+Lint your code to catch errors and maintain consistency:
+
+<CodeGroup>
+```bash Check
+npm run lint
+```
+
+```bash Auto-fix
+npm run lint:fix
+```
+</CodeGroup>
+
+See the [Code Style Guide](/development/code-style) for more details.
+
+## Environment Configuration
+
+Air Tracker uses environment files for configuration:
+
+- `src/environments/environment.ts` - Development environment
+- `src/environments/environment.production.ts` - Production environment
+
+During production builds, `environment.ts` is replaced with `environment.production.ts`:
+
+```json
+// angular.json production configuration
+"fileReplacements": [
+  {
+    "replace": "src/environments/environment.ts",
+    "with": "src/environments/environment.production.ts"
+  }
+]
+```
+
+## Common Development Tasks
+
+### Generate New Components
+
+<CodeGroup>
+```bash Component
+ng generate component features/my-feature/my-component
+```
+
+```bash Service
+ng generate service features/my-feature/services/my-service
+```
+</CodeGroup>
+
+### Clear Build Cache
+
+If you encounter build issues:
+
+<CodeGroup>
+```bash Terminal
+rm -rf .angular/cache
+npm run build
+```
+</CodeGroup>
+
+### Update Dependencies
+
+Check for outdated packages:
+
+<CodeGroup>
+```bash Terminal
+npm outdated
+```
+</CodeGroup>
+
+## Performance Tips
+
+### Faster Rebuilds
+
+- Close unnecessary applications to free up system resources
+- Use watch mode instead of restarting the server
+- Increase Node.js memory: `NODE_OPTIONS=--max-old-space-size=4096 npm start`
+
+### Faster Tests
+
+Run tests for specific files:
+
+<CodeGroup>
+```bash Terminal
+ng test --include='**/my-component.spec.ts'
+```
+</CodeGroup>
+
+## Troubleshooting
+
+### Build Errors
+
+If you see TypeScript errors:
+1. Ensure your IDE is using the workspace TypeScript version
+2. Check `tsconfig.json` for strict mode settings
+3. Clear the Angular cache: `rm -rf .angular/cache`
+
+### Module Not Found
+
+If imports fail:
+1. Verify the file path is correct
+2. Check that the module is properly exported
+3. Restart the TypeScript language server
+
+### Hot Reload Not Working
+
+If changes don't auto-reload:
+1. Check that you're saving files properly
+2. Restart the dev server
+3. Clear browser cache (Ctrl+Shift+R)
+
+## Next Steps
+
+- Learn about [testing](/development/testing)
+- Review [code style guidelines](/development/code-style)
+- Explore [component development guidelines](/development/component-guidelines)

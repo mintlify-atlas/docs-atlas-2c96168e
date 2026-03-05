@@ -1,0 +1,163 @@
+---
+title: 'Flight Status LED Component'
+description: 'Visual status indicator showing whether a flight is on the ground or in the air'
+---
+
+## Overview
+
+The `FlightStatusLedComponent` is a simple visual indicator that displays the current state of a flight using an LED-style circle. It shows a pulsing green LED for flights in the air and a static red LED for aircraft on the ground.
+
+**Selector:** `app-flight-status-led`
+
+**Location:** `src/app/features/flights/ui/flight-status-led/flight-status-led.component.ts:5`
+
+## Component API
+
+### Inputs
+
+<ParamField path="onGround" type="boolean" default="false">
+  Indicates whether the aircraft is on the ground. When `true`, displays a red LED. When `false`, displays an animated green LED.
+</ParamField>
+
+## Visual States
+
+### Flying State (`onGround = false`)
+
+**Appearance:**
+- Green pulsing LED (10px diameter)
+- Animated glow effect
+- Radial gradient background
+- Box shadow with green tint
+- Continuous pulse animation (1.8s cycle)
+- Expanding glow halo (1s cycle)
+
+**CSS Classes:** `.led-pilot.flying`
+
+**Tooltip:** "In Flight"
+
+**Source:** `flight-status-led.component.scss:13-32`
+
+### Grounded State (`onGround = true`)
+
+**Appearance:**
+- Solid red LED (10px diameter)
+- Static glow (no animation)
+- Radial gradient background
+- Box shadow with red tint
+
+**CSS Classes:** `.led-pilot.grounded`
+
+**Tooltip:** "On Ground"
+
+**Source:** `flight-status-led.component.scss:34-39`
+
+## Styling Details
+
+The component uses sophisticated CSS styling to create a realistic LED effect:
+
+```scss
+// Flying LED - Animated green
+.led-pilot.flying {
+  background: radial-gradient(circle, #4CAF50 40%, transparent 60%);
+  box-shadow: 
+    0 0 12px #4CAF50,
+    inset 0 0 8px rgba(255,255,255,0.3);
+  animation: ledPulse 1.8s ease-in-out infinite;
+}
+
+// Grounded LED - Static red
+.led-pilot.grounded {
+  background: radial-gradient(circle, #F44336 50%, rgba(244,67,54,0.7) 100%);
+  box-shadow: 
+    0 0 8px #F44336,
+    inset 0 0 6px rgba(255,255,255,0.2);
+}
+```
+
+### Animations
+
+**Pulse Animation** (`ledPulse` - 1.8s cycle):
+- Alternates opacity between 1.0 and 0.7
+- Slightly scales the LED (1.0 to 1.05)
+- Creates breathing effect
+
+**Glow Animation** (`ledGlow` - 1s cycle):
+- Applied to the `::after` pseudo-element
+- Expands and contracts the glow halo
+- Opacity fades between 0.6 and 0.3
+
+**Source:** `flight-status-led.component.scss:43-63`
+
+## Usage Examples
+
+### In Flight List
+
+```html
+<!-- From flights-list.component.html:43 -->
+<app-flight-status-led [onGround]="element.onGround"></app-flight-status-led>
+```
+
+Displays dynamic status for each flight row in the data table.
+
+### In Flight Detail Views
+
+```html
+<!-- From flight-detail-panel.component.html:12 -->
+<app-flight-status-led [onGround]="flight.onGround"></app-flight-status-led>
+
+<!-- From flight-detail-bottom-sheet.component.html:14 -->
+<app-flight-status-led [onGround]="flight.onGround"></app-flight-status-led>
+```
+
+Shows the current status in detail panels and bottom sheets.
+
+### In Polling Status Component
+
+```html
+<!-- From polling-status.component.html:3,10,18 -->
+
+<!-- Static "grounded" example -->
+<app-flight-status-led [onGround]="true"></app-flight-status-led>
+
+<!-- Static "flying" example -->
+<app-flight-status-led [onGround]="false"></app-flight-status-led>
+```
+
+Used in the polling status component to show example LED states.
+
+### Static States (For Legends/Examples)
+
+```html
+<!-- Always show grounded -->
+<app-flight-status-led [onGround]="true"></app-flight-status-led>
+
+<!-- Always show flying -->
+<app-flight-status-led [onGround]="false"></app-flight-status-led>
+```
+
+## Template Structure
+
+The component uses a minimal template (`flight-status-led.component.html:1-3`):
+
+```html
+<div class="led-container" [matTooltip]="onGround() ? 'On Ground' : 'In Flight'">
+  <div class="led-pilot" [class.flying]="!onGround()" [class.grounded]="onGround()"></div>
+</div>
+```
+
+- **Container**: Wraps the LED with tooltip support
+- **LED Element**: Applies conditional CSS classes based on `onGround` state
+- **Tooltip**: Shows human-readable status text on hover
+
+## Dependencies
+
+- **MatTooltipModule**: Provides tooltip functionality for status description
+
+## Features
+
+- Minimal footprint (simple boolean input)
+- Smooth CSS animations
+- Accessible via tooltip descriptions
+- Responsive visual feedback
+- No external image dependencies
+- Works in real-time with signal-based updates

@@ -1,0 +1,491 @@
+---
+title: Interactive Map
+description: Leaflet-powered map with animated flight markers, base layer switching, and real-time position tracking
+icon: map
+---
+
+## Overview
+
+Air Tracker uses Leaflet to display flights on an interactive map with smooth animations, rotated markers based on aircraft heading, and multiple base layer options.
+
+## Map Component Architecture
+
+The map system is built around three main components:
+
+<CardGroup cols={3}>
+  <Card title="FlightsMapComponent" icon="map-location-dot">
+    Main map container and controls
+  </Card>
+  <Card title="MapMarkerService" icon="location-dot">
+    Marker creation and updates
+  </Card>
+  <Card title="Base Layers" icon="layer-group">
+    Map tile layer configurations
+  </Card>
+</CardGroup>
+
+## Leaflet Integration
+
+### Map Initialization
+
+The map is initialized in `ngAfterViewInit` with custom configuration:
+
+```typescript
+private initiateMap(): void {
+  this.map = L.map('map', {
+    center: [40, 0],     // Center on Europe/Atlantic
+    zoom: 6,
+    zoomSnap: 1,
+    zoomDelta: 1,
+    zoomControl: false,  // Custom zoom control placement
+  });
+  
+  // Set initial base layer
+  this.setBaseLayer('streets');
+  
+  // Add markers layer
+  this.markersLayer.addTo(this.map);
+  
+  // Create zoom control in custom position
+  const zoom = L.control.zoom({ position: 'topleft' });
+  zoom.addTo(this.map);
+  
+  // Move zoom control to custom host element
+  const zoomEl = zoom.getContainer();
+  if (zoomEl) {
+    this.zoomHost.nativeElement.appendChild(zoomEl);
+  }
+}
+```
+
+<Note>
+The zoom control is created with Leaflet but moved to a custom host element for better UI integration with Angular Material components.
+</Note>
+
+### Component Template
+
+```html
+<div #mapContainer id="map">
+  <div #zoomHost class="zoom-host"></div>
+  
+  <!-- Base layer switcher -->
+  <mat-button-toggle-group>
+    <mat-button-toggle value="streets" (click)="changeBase('streets')">
+      Streets
+    </mat-button-toggle>
+    <mat-button-toggle value="satellite" (click)="changeBase('satellite')">
+      Satellite
+    </mat-button-toggle>
+  </mat-button-toggle-group>
+</div>
+```
+
+## Map Controls
+
+### Zoom Controls
+
+<Tabs>
+  <Tab title="User Interface">
+    - **Zoom In**: `+` button (top-left)
+    - **Zoom Out**: `-` button (top-left)
+    - **Mouse Wheel**: Scroll to zoom in/out
+    - **Double Click**: Zoom in on location
+    - **Pinch Gesture**: Touch devices
+  </Tab>
+  <Tab title="Configuration">
+    ```typescript
+    {
+      zoomSnap: 1,      // Zoom in whole numbers
+      zoomDelta: 1,     // Change by 1 level per action
+      position: 'topleft'
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Pan Controls
+
+- **Mouse Drag**: Click and drag to pan
+- **Touch Drag**: Swipe on mobile devices
+- **Keyboard**: Arrow keys for panning
+
+<Tip>
+The map responds to both mouse and touch events, providing a consistent experience across desktop and mobile devices.
+</Tip>
+
+## Base Layer Switching
+
+Air Tracker supports four different base map layers:
+
+### Available Layers
+
+```typescript
+// From flights-map.layers.ts
+export const BASE_LAYERS: Record<BaseLayerKey, L.TileLayer> = {
+  satellite: L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    {
+      maxZoom: 19,
+      attribution: 'Tiles © Esri ...'
+    }
+  ),
+  
+  streets: L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap contributors'
+    }
+  ),
+  
+  dark: L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap contributors © CARTO'
+    }
+  ),
+  
+  light: L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap contributors © CARTO'
+    }
+  ),
+};
+```
+
+<CardGroup cols={2}>
+  <Card title="Satellite" icon="satellite">
+    High-resolution satellite imagery from Esri
+  </Card>
+  <Card title="Streets" icon="road">
+    Standard OpenStreetMap street view
+  </Card>
+  <Card title="Dark" icon="moon">
+    Dark theme from CARTO, ideal for night use
+  </Card>
+  <Card title="Light" icon="sun">
+    Light minimalist theme from CARTO
+  </Card>
+</CardGroup>
+
+### Layer Switching Implementation
+
+```typescript
+private setBaseLayer(name: BaseLayerKey): void {
+  const newLayer = this.baseLayers[name];
+  if (!this.map || !newLayer) return;
+  
+  // Remove current layer
+  if (this.currentBaseLayer) {
+    this.map.removeLayer(this.currentBaseLayer);
+  }
+  
+  // Add new layer
+  newLayer.addTo(this.map);
+  this.currentBaseLayer = newLayer;
+}
+
+changeBase(name: BaseLayerKey): void {
+  this.setBaseLayer(name);
+}
+```
+
+<Info>
+Base layer switching is instant - the old layer is removed and the new one is added without reloading the entire map.
+</Info>
+
+## Animated Flight Markers
+
+### Marker Creation
+
+Flight markers are created with custom SVG icons that rotate based on aircraft heading:
+
+```typescript
+// From MapMarkerService
+makePlaneIcon(flight: Flight, selected: boolean): L.DivIcon {
+  const size = 24;
+  
+  if (selected) {
+    return L.divIcon({
+      className: `plane-marker is-selected`,
+      html: `<div class="plane-rotated">${PLANE_SVG}</div>`,
+      iconSize: [size, size] as L.PointExpression,
+      iconAnchor: [size / 2, size / 2],  // Center anchor point
+    });
+  }
+  
+  const statusClass = flight.onGround ? 'plane--ground' : 'plane--air';
+  return L.divIcon({
+    className: `plane-marker ${statusClass}`,
+    html: `<div class="plane-rotated">${PLANE_SVG}</div>`,
+    iconSize: [size, size] as L.PointExpression,
+    iconAnchor: [size / 2, size / 2],
+  });
+}
+```
+
+<Tabs>
+  <Tab title="Flying">
+    ```css
+    .plane-marker.plane--air {
+      color: #2196F3;  /* Blue for airborne */
+    }
+    ```
+  </Tab>
+  <Tab title="On Ground">
+    ```css
+    .plane-marker.plane--ground {
+      color: #FF9800;  /* Orange for grounded */
+    }
+    ```
+  </Tab>
+  <Tab title="Selected">
+    ```css
+    .plane-marker.is-selected {
+      color: #4CAF50;  /* Green for selected */
+      transform: scale(1.2);
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Smooth Position Updates
+
+Markers animate smoothly between positions using the `leaflet-moving-rotated-marker` plugin:
+
+```typescript
+updateMarkers(flights: Flight[], markersLayer: L.LayerGroup): void {
+  const currentIcaos = new Set(flights.map(f => f.icao24));
+  const selectedId = this.store.selectedFlightId();
+  
+  // Remove markers for flights that disappeared
+  Array.from(this.markers.keys()).forEach(key => {
+    if (!currentIcaos.has(key)) {
+      const marker = this.markers.get(key);
+      if (!marker) return;
+      markersLayer.removeLayer(marker);
+      this.markers.delete(key);
+    }
+  });
+  
+  // Update or create markers
+  flights.forEach(flight => {
+    if (flight.latitude == null || flight.longitude == null) return;
+    let marker = this.markers.get(flight.icao24);
+    
+    if (!marker) {
+      // Create new marker
+      marker = L.marker([flight.latitude, flight.longitude], {
+        icon: this.makePlaneIcon(flight, flight.icao24 === selectedId),
+        rotationAngle: flight.heading ?? 0
+      } as L.MarkerOptions);
+      
+      // Add click handler
+      marker.on('click', () => {
+        const currentSelected = this.store.selectedFlightId();
+        if (currentSelected === flight.icao24) {
+          this.store.clearSelection();
+        } else {
+          this.store.setSelectedFlightId(flight.icao24);
+        }
+      });
+      
+      marker.addTo(markersLayer);
+      this.markers.set(flight.icao24, marker);
+    } else {
+      // Animate to new position
+      const prevLatLng = marker.getLatLng();
+      const prev: Flight = {
+        ...flight,
+        latitude: prevLatLng.lat,
+        longitude: prevLatLng.lng
+      };
+      
+      if (!this.shouldAcceptUpdate(prev, flight)) {
+        return;  // Skip invalid updates
+      }
+      
+      // Smooth animation over 12 seconds
+      (marker as any).slideTo([flight.latitude, flight.longitude], {
+        duration: 12000,
+        rotationAngle: flight.heading ?? 0,
+        easing: 'easeInOutQuart'
+      });
+    }
+  });
+}
+```
+
+<Note>
+The `slideTo` method from `leaflet-moving-rotated-marker` creates smooth 12-second animations between position updates, making flight movement appear natural.
+</Note>
+
+## Marker Rotation Based on Heading
+
+Aircraft markers automatically rotate to match their heading:
+
+```typescript
+// Initial marker creation
+marker = L.marker([flight.latitude, flight.longitude], {
+  icon: this.makePlaneIcon(flight, selected),
+  rotationAngle: flight.heading ?? 0  // Degrees (0-360)
+} as L.MarkerOptions);
+
+// During animation
+(marker as any).slideTo([newLat, newLng], {
+  duration: 12000,
+  rotationAngle: flight.heading ?? 0,  // Smoothly rotate during slide
+  easing: 'easeInOutQuart'
+});
+```
+
+### Heading Values
+
+- **0°**: North
+- **90°**: East
+- **180°**: South
+- **270°**: West
+- **null**: No heading data (marker shows default orientation)
+
+## Position Validation
+
+The marker service includes sophisticated validation to prevent impossible movements:
+
+```typescript
+private shouldAcceptUpdate(prev: Flight, next: Flight): boolean {
+  if (
+    prev.latitude == null || prev.longitude == null ||
+    next.latitude == null || next.longitude == null
+  ) {
+    return true;
+  }
+  
+  // 1. Reject outdated positions
+  if (
+    prev.timePosition != null &&
+    next.timePosition != null &&
+    next.timePosition < prev.timePosition
+  ) {
+    return false;
+  }
+  
+  // 2. Reject duplicate positions (< 500m)
+  const distKm = this.haversineKm(
+    prev.latitude, prev.longitude,
+    next.latitude, next.longitude
+  );
+  if (distKm < 0.5) {
+    return false;
+  }
+  
+  // 3. Reject impossible speeds (> 1300 km/h)
+  const tPrev = prev.timePosition ?? prev.lastContact ?? null;
+  const tNext = next.timePosition ?? next.lastContact ?? null;
+  
+  if (tPrev != null && tNext != null && tNext > tPrev) {
+    const dtSec = tNext - tPrev;
+    const speedKmH = (distKm / dtSec) * 3600;
+    
+    if (speedKmH > 1300) {
+      return false;  // Faster than any commercial aircraft
+    }
+  }
+  
+  return true;
+}
+```
+
+<Info>
+Position validation prevents visual glitches from GPS errors, data duplicates, or network issues that could cause aircraft to "jump" unrealistically.
+</Info>
+
+### Haversine Distance Calculation
+
+```typescript
+private haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const EARTH_RADIUS_KM = 6371;
+  const toRad = (v: number) => v * Math.PI / 180;
+  
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return EARTH_RADIUS_KM * c;
+}
+```
+
+## Reactive Updates with Angular Signals
+
+The map component uses Angular effects to automatically update when data changes:
+
+```typescript
+constructor() {
+  // Update markers when flights change
+  effect(() => {
+    const flights = this.flights();
+    if (this.map) {
+      this.markerService.updateMarkers(flights, this.markersLayer);
+    }
+  });
+  
+  // Update icons when selection changes
+  effect(() => {
+    const selectedId = this.store.selectedFlightId();
+    const flights = this.flights();
+    if (this.map && flights.length) {
+      this.markerService.updateIcons(flights, selectedId);
+    }
+  });
+}
+```
+
+<Tip>
+Angular effects automatically track signal dependencies and re-run when those signals change, keeping the map in sync with the store.
+</Tip>
+
+## Icon Updates for Selection
+
+```typescript
+updateIcons(flights: Flight[], selectedId: string | null): void {
+  // Reset all icons to normal state
+  this.markers.forEach((marker, icao24) => {
+    const flight = flights.find(f => f.icao24 === icao24);
+    if (flight) {
+      const normalIcon = this.makePlaneIcon(flight, false);
+      marker.setIcon(normalIcon);
+    }
+  });
+  
+  // Highlight selected marker
+  if (selectedId && this.markers.has(selectedId)) {
+    const flight = flights.find(f => f.icao24 === selectedId);
+    if (flight) {
+      const selectedIcon = this.makePlaneIcon(flight, true);
+      this.markers.get(selectedId)!.setIcon(selectedIcon);
+    }
+  }
+}
+```
+
+## Map Cleanup
+
+Proper cleanup prevents memory leaks:
+
+```typescript
+ngOnDestroy(): void {
+  if (this.map) {
+    this.map.remove();  // Leaflet cleanup
+  }
+}
+```
+
+<Note>
+Leaflet's `remove()` method cleans up all event listeners, layers, and DOM elements associated with the map.
+</Note>

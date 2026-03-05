@@ -1,0 +1,677 @@
+---
+title: 'API Integration'
+description: 'Backend API integration patterns, HTTP client usage, and smart polling implementation'
+---
+
+# API Integration
+
+Air Tracker integrates with a backend API to fetch real-time flight data and aircraft photos. The integration layer is designed for reliability, performance, and maintainability.
+
+## API Service Structure
+
+The `FlightsApiService` provides a clean abstraction over HTTP communication:
+
+```typescript
+// features/flights/services/flights-api.service.ts:11
+@Injectable({ providedIn: 'root' })
+export class FlightsApiService {
+  private readonly http = inject(HttpClient);
+  private readonly apiConfig = inject(ApiConfigService);
+
+  private readonly baseUrl = this.apiConfig.apiBaseUrl;
+
+  getLiveFlights(): Observable<FlightResponseDto> {
+    return this.http.get<FlightResponseDto>(`${this.baseUrl}/flights/live`);
+  }
+
+  getPhotosByIcao24(icao24: string): Observable<AircraftPhotoDto> {
+    return this.http.get<AircraftPhotoDto>(`${this.baseUrl}/aircraft-photos/${icao24}`);
+  }
+}
+```
+
+<Info>
+**Design Principles:**
+- Single Responsibility: API service only handles HTTP communication
+- Dependency Injection: Uses Angular's `inject()` function
+- Type Safety: All responses are strongly typed
+- Configuration: Base URL comes from environment config
+- Observables: Returns RxJS Observables for async handling
+</Info>
+
+## API Endpoints
+
+The service exposes two primary endpoints:
+
+### GET /flights/live
+
+Fetches current flight data with metadata:
+
+**Response Type:**
+```typescript
+// shared/models/flight.dto.ts:1
+export interface FlightResponseDto {
+  time: number;                    // Unix timestamp of response
+  flights: FlightDto[];            // Array of flight data
+  cacheAgeMs?: number;             // Age of cached data (milliseconds)
+  pollingIntervalMs?: number;      // Suggested polling interval
+  nextUpdateInMs?: number;         // Time until next data refresh
+}
+```
+
+**Usage:**
+```typescript
+this.api.getLiveFlights().subscribe(response => {
+  console.log(`Received ${response.flights.length} flights`);
+  console.log(`Cache age: ${response.cacheAgeMs}ms`);
+  console.log(`Poll again in: ${response.nextUpdateInMs}ms`);
+});
+```
+
+<Note>
+The backend controls polling frequency via `nextUpdateInMs` and `pollingIntervalMs`. This allows the server to throttle requests during high load or adjust intervals based on data freshness.
+</Note>
+
+### GET /aircraft-photos/{icao24}
+
+Fetches photo metadata for a specific aircraft:
+
+**Response Type:**
+```typescript
+// shared/models/aircraft-photo.dto.ts:1
+export interface AircraftPhotoDto {
+  thumbnailUrl: string;     // Small preview image URL
+  largeUrl: string;         // Full-size image URL
+  link: string;             // Link to photo source
+  photographer: string;     // Photographer name
+  attribution: string;      // Attribution text
+}
+```
+
+**Usage:**
+```typescript
+this.api.getPhotosByIcao24('a1b2c3')
+  .pipe(
+    take(1),
+    catchError(() => of(null))
+  )
+  .subscribe(photo => {
+    if (photo) {
+      this.displayPhoto(photo);
+    } else {
+      this.showPlaceholder();
+    }
+  });
+```
+
+<Warning>
+Photo requests are **not cached** by the frontend. Each flight detail view triggers a new request. Consider implementing a photo cache if users frequently view the same aircraft.
+</Warning>
+
+## Data Transfer Objects (DTOs)
+
+DTOs represent the API contract exactly as the backend provides it:
+
+### FlightDto
+
+```typescript
+// shared/models/flight.dto.ts:9
+export interface FlightDto {
+  icao24: string;                 // Unique aircraft identifier
+  callsign: string | null;        // Flight callsign (e.g., "UAL123")
+  originCountry: string;          // Country of origin
+  timePosition: number | null;    // Last position update timestamp
+  lastContact: number;            // Last contact timestamp
+  latitude: number | null;        // Current latitude
+  longitude: number | null;       // Current longitude
+  altitudeBaro: number | null;    // Barometric altitude (meters)
+  altitudeGeo: number | null;     // Geometric altitude (meters)
+  heading: number | null;         // True track (degrees)
+  velocity: number | null;        // Velocity (m/s)
+  onGround: boolean;              // True if on ground
+  category: string | null;        // Aircraft category
+  model: string | null;           // Aircraft model
+  operator: string | null;        // Airline operator
+  operatorIcao: string | null;    // ICAO operator code
+  owner: string | null;           // Aircraft owner
+  typecode: string | null;        // Aircraft type code
+  registration: string | null;    // Aircraft registration
+  verticalRate: number | null;    // Vertical rate (m/s)
+  squawk: string | null;          // Transponder code
+  spi: boolean;                   // Special position indicator
+}
+```
+
+<Info>
+**Nullable Fields**: Many fields are nullable (`| null`) because data may be unavailable from the source (OpenSky Network). The UI must handle these gracefully.
+</Info>
+
+### DTO to Model Mapping
+
+DTOs are mapped to internal domain models:
+
+```typescript
+// features/flights/models/flight.model.ts:28
+export const mapFlightDtoToFlight = (dto: FlightDto): Flight => ({
+  icao24: dto.icao24,
+  callsign: dto.callsign,
+  originCountry: dto.originCountry,
+  timePosition: dto.timePosition,
+  lastContact: dto.lastContact,
+  latitude: dto.latitude,
+  longitude: dto.longitude,
+  altitudeBaro: dto.altitudeBaro,
+  altitudeGeo: dto.altitudeGeo,
+  heading: dto.heading,
+  onGround: dto.onGround,
+  velocity: dto.velocity,
+  category: dto.category,
+  model: dto.model,
+  operator: dto.operator,
+  operatorIcao: dto.operatorIcao,
+  owner: dto.owner,
+  typecode: dto.typecode,
+  registration: dto.registration,
+  verticalRate: dto.verticalRate,
+  squawk: dto.squawk,
+  spi: dto.spi,
+});
+```
+
+Currently, the `Flight` model matches the DTO exactly, but separating them allows:
+- Future transformations (e.g., converting velocities to different units)
+- Adding computed properties
+- Decoupling internal state from API contracts
+
+<Note>
+**Why Separate DTOs and Models?**
+
+1. **API Contract Stability**: DTOs represent the backend contract and shouldn't change
+2. **Domain Logic**: Models can include business logic and computed properties
+3. **Type Safety**: Explicit mapping catches breaking API changes at compile time
+4. **Testing**: Easier to mock and test with domain models
+</Note>
+
+## HTTP Client Configuration
+
+The HTTP client is provided at the application level:
+
+```typescript
+// app.config.ts:17
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideHttpClient(),
+    // ... other providers
+  ],
+};
+```
+
+This enables:
+- Singleton HttpClient instance
+- Automatic JSON parsing
+- Interceptor support (for future auth, logging, etc.)
+
+## API Configuration Service
+
+Environment-specific configuration is centralized:
+
+```typescript
+// core/services/api-config.service.ts:16
+@Injectable({ providedIn: 'root' })
+export class ApiConfigService {
+  private readonly config: ApiConfig = {
+    apiBaseUrl: environment.apiBaseUrl,
+    features: environment.features,
+    production: environment.production,
+  };
+
+  get apiBaseUrl(): string {
+    return this.config.apiBaseUrl;
+  }
+}
+```
+
+**Configuration Interface:**
+```typescript
+export interface ApiConfig {
+  apiBaseUrl: string;
+  features: {
+    enableFavorites: boolean;
+    enableStats: boolean;
+  };
+  production: boolean;
+}
+```
+
+This allows:
+- Different API URLs for dev/staging/production
+- Feature flags for gradual rollouts
+- Environment-specific behavior
+
+<Info>
+**Environment Files**: API configuration comes from `src/environments/environment.ts` (dev) and `src/environments/environment.prod.ts` (production), managed by Angular's build system.
+</Info>
+
+## Error Handling
+
+The API service returns raw Observables; error handling is the caller's responsibility:
+
+### In FlightsStoreService
+
+```typescript
+// features/flights/services/flights-store.service.ts:181
+this.activePollSub = this.api.getLiveFlights()
+  .pipe(
+    catchError((err: unknown) => {
+      console.error('❌ Polling failed:', err);
+      this._error.set('Error fetching flights');
+      this._loading.set(false);
+      this._warning.set(null);
+
+      // Retry after 15 seconds
+      this.pollingTimeoutId = setTimeout(() => this.poll(), 15000);
+      return of(null);
+    })
+  )
+  .subscribe(response => {
+    if (!response) return;
+    // Handle success...
+  });
+```
+
+**Error Handling Strategy:**
+1. Log error to console
+2. Set user-visible error message
+3. Clear loading state
+4. Schedule retry with exponential backoff (15s)
+5. Return `of(null)` to prevent subscription termination
+
+<Warning>
+**Error Recovery**: Returning `of(null)` from catchError keeps the subscription alive. Without this, a single failed request would stop all future polling.
+</Warning>
+
+### In FlightsShellComponent (Photo Fetch)
+
+```typescript
+// features/flights/flights-shell/flights-shell.component.ts:109
+this.api.getPhotosByIcao24(icao24)
+  .pipe(
+    take(1),
+    catchError(() => of(null))
+  )
+  .subscribe(photoDto => {
+    let photo: AircraftPhoto | null = null;
+
+    if (photoDto) {
+      try {
+        photo = fromAircraftPhotoDto(photoDto);
+      } catch (e) {
+        console.warn('Invalid photo:', e);
+      }
+    }
+
+    // Display with or without photo
+    if (this.viewport.isDesktop()) {
+      this.openOverlayPanel(icao24, photo);
+    } else {
+      this.openBottomSheet(icao24, photo);
+    }
+  });
+```
+
+**Photo Error Handling:**
+1. Fail silently with `catchError(() => of(null))`
+2. Display detail view without photo
+3. No user-visible error (photos are optional)
+
+<Note>
+Photo failures are non-critical. Flight details display even if the photo request fails, ensuring a resilient user experience.
+</Note>
+
+## Smart Polling Implementation
+
+Smart polling is the most sophisticated aspect of API integration.
+
+### Polling Lifecycle
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Component Mounts                                   │
+│  ngOnInit()                                         │
+└──────────────────┬──────────────────────────────────┘
+                   │
+                   ▼
+         ┌─────────────────────┐
+         │ startSmartPolling() │
+         └──────────┬──────────┘
+                    │
+                    ▼
+         ┌─────────────────────┐
+         │      poll()         │◄─────────┐
+         └──────────┬──────────┘          │
+                    │                     │
+                    ▼                     │
+         ┌─────────────────────┐          │
+         │ api.getLiveFlights()│          │
+         └──────────┬──────────┘          │
+                    │                     │
+         ┌──────────┴──────────┐          │
+         │                     │          │
+         ▼                     ▼          │
+    ┌─────────┐          ┌─────────┐     │
+    │ Success │          │  Error  │     │
+    └────┬────┘          └────┬────┘     │
+         │                    │          │
+         ▼                    ▼          │
+  ┌──────────────┐     ┌──────────────┐ │
+  │Update Store  │     │ Set Error    │ │
+  │Calculate     │     │ Retry: 15s   │─┘
+  │Next Interval │     └──────────────┘
+  └──────┬───────┘
+         │
+         ▼
+  ┌──────────────────┐
+  │ setTimeout()     │
+  │ (adaptive delay) │──────────────────┘
+  └──────────────────┘
+```
+
+### Adaptive Interval Calculation
+
+```typescript
+// features/flights/services/flights-store.service.ts:231
+private calculateNextPollInterval(response: FlightResponseDto): number {
+  const nextPollMs = response.nextUpdateInMs
+    ?? response.pollingIntervalMs
+    ?? 8000;  // Default 8 seconds
+
+  this._nextUpdateInMs.set(nextPollMs);
+  this._nextUpdateAtMs.set(Date.now() + nextPollMs);
+  if (response.pollingIntervalMs) {
+    this._currentPollingIntervalMs.set(response.pollingIntervalMs);
+  }
+
+  return nextPollMs;
+}
+```
+
+**Fallback Priority:**
+1. `response.nextUpdateInMs` - Specific time until next update
+2. `response.pollingIntervalMs` - General polling interval
+3. `8000` - Hardcoded default (8 seconds)
+
+<Info>
+**Backend-Driven Intervals**: This design allows the backend to dynamically adjust polling frequency based on:
+- Data freshness (e.g., longer intervals for stale data)
+- Server load (e.g., increase intervals during peak traffic)
+- Client priority (e.g., premium users get faster updates)
+</Info>
+
+### Polling State Tracking
+
+The store maintains comprehensive polling state:
+
+```typescript
+private readonly _lastUpdated = signal<Date | null>(null);
+private readonly _cacheAgeMs = signal<number>(0);
+private readonly _nextUpdateInMs = signal<number>(0);
+private readonly _nextUpdateAtMs = signal<number | null>(null);
+private readonly _currentPollingIntervalMs = signal<number>(8000);
+```
+
+These signals power the UI's polling status indicator:
+
+```typescript
+// Example: Polling status component
+<div class="polling-status">
+  Last updated: {{ store.lastUpdated() | date:'short' }}
+  Next update in: {{ store.nextUpdateInMs() / 1000 }}s
+  Current interval: {{ store.currentPollingIntervalMs() / 1000 }}s
+</div>
+```
+
+### Cache Age Monitoring
+
+```typescript
+// features/flights/services/flights-store.service.ts:217
+if (cacheAgeMs > 30000) {
+  const cacheAgeSec = Math.round(cacheAgeMs / 1000);
+  this._warning.set(`⚠️ Data from ${cacheAgeSec}s ago (may be outdated)`);
+} else {
+  this._warning.set(null);
+}
+```
+
+When backend data is older than 30 seconds, a warning displays to inform users.
+
+<Warning>
+**Stale Data Threshold**: The 30-second threshold is arbitrary. Adjust based on your use case:
+- Real-time trading: 5 seconds
+- Flight tracking: 30-60 seconds
+- Weather data: 5-10 minutes
+</Warning>
+
+### Subscription Cleanup
+
+```typescript
+// features/flights/services/flights-store.service.ts:152
+stopPolling(): void {
+  if (this.pollingTimeoutId) {
+    clearTimeout(this.pollingTimeoutId);
+    this.pollingTimeoutId = undefined;
+  }
+
+  this.activePollSub?.unsubscribe();
+  this.activePollSub = null;
+
+  this._loading.set(false);
+}
+```
+
+Proper cleanup prevents:
+- Memory leaks from dangling subscriptions
+- Multiple concurrent requests
+- Zombie timers continuing after component destruction
+
+<Note>
+`stopPolling()` is called before starting new polls to ensure clean state transitions.
+</Note>
+
+## Request Lifecycle
+
+Detailed flow of a single polling request:
+
+```typescript
+// 1. Start polling
+private poll(): void {
+  this._loading.set(true);  // UI shows loading indicator
+
+  // 2. Cancel any in-flight request
+  this.activePollSub?.unsubscribe();
+  this.activePollSub = null;
+
+  // 3. Make HTTP request
+  this.activePollSub = this.api.getLiveFlights()
+    .pipe(
+      catchError((err: unknown) => {
+        // 4a. Handle error
+        console.error('❌ Polling failed:', err);
+        this._error.set('Error fetching flights');
+        this._loading.set(false);
+
+        // 5a. Schedule retry
+        this.pollingTimeoutId = setTimeout(() => this.poll(), 15000);
+        return of(null);
+      })
+    )
+    .subscribe(response => {
+      if (!response) return;
+
+      // 4b. Handle success
+      this._error.set(null);
+      this.updateStoreFromResponse(response);
+
+      // 5b. Schedule next poll
+      const nextPollMs = this.calculateNextPollInterval(response);
+      this.pollingTimeoutId = setTimeout(() => this.poll(), nextPollMs);
+    });
+}
+```
+
+**Key Points:**
+1. Set loading state immediately
+2. Cancel previous request to prevent overlaps
+3. Handle both success and error paths
+4. Always schedule next poll (success or failure)
+5. Use adaptive intervals on success, fixed retry on error
+
+## Performance Considerations
+
+### Request Cancellation
+
+```typescript
+this.activePollSub?.unsubscribe();
+```
+
+Unsubscribing cancels the HTTP request if still in-flight, preventing:
+- Wasted bandwidth
+- Race conditions (old response arriving after new response)
+- Multiple overlapping requests
+
+### Debouncing User Actions
+
+While not implemented for polling, user-triggered API calls should be debounced:
+
+```typescript
+// Example: Debounce search input
+searchControl.valueChanges.pipe(
+  debounceTime(300),
+  distinctUntilChanged(),
+  switchMap(query => this.api.search(query))
+).subscribe(results => {
+  // Update UI
+});
+```
+
+### Caching Strategies
+
+Consider implementing client-side caching for:
+
+**Aircraft Photos**
+```typescript
+private photoCache = new Map<string, AircraftPhotoDto>();
+
+getPhotosByIcao24(icao24: string): Observable<AircraftPhotoDto> {
+  if (this.photoCache.has(icao24)) {
+    return of(this.photoCache.get(icao24)!);
+  }
+  
+  return this.http.get<AircraftPhotoDto>(`${this.baseUrl}/aircraft-photos/${icao24}`)
+    .pipe(
+      tap(photo => this.photoCache.set(icao24, photo))
+    );
+}
+```
+
+<Warning>
+**Cache Invalidation**: Implement TTL (time-to-live) for cached data to prevent serving stale information indefinitely.
+</Warning>
+
+## Future Enhancements
+
+### 1. WebSocket Support
+
+Replace polling with WebSockets for true real-time updates:
+
+```typescript
+connectWebSocket(): void {
+  const ws = new WebSocket('wss://api.airtracker.com/flights');
+  
+  ws.onmessage = (event) => {
+    const response: FlightResponseDto = JSON.parse(event.data);
+    this.updateStoreFromResponse(response);
+  };
+}
+```
+
+Benefits:
+- Lower latency
+- Reduced bandwidth
+- Server-initiated updates
+
+### 2. Request Interceptors
+
+Add HTTP interceptors for:
+- Authentication tokens
+- Request logging
+- Error tracking
+- Retry logic
+
+```typescript
+provideHttpClient(
+  withInterceptors([authInterceptor, loggingInterceptor])
+)
+```
+
+### 3. Optimistic Updates
+
+Update UI before API confirmation:
+
+```typescript
+favoriteFlight(icao24: string): void {
+  // Immediately update UI
+  this._favorites.update(favs => [...favs, icao24]);
+  
+  // Sync with backend
+  this.api.addFavorite(icao24).pipe(
+    catchError(() => {
+      // Rollback on error
+      this._favorites.update(favs => favs.filter(id => id !== icao24));
+      return EMPTY;
+    })
+  ).subscribe();
+}
+```
+
+### 4. Offline Support
+
+Cache responses for offline viewing:
+
+```typescript
+getLiveFlights(): Observable<FlightResponseDto> {
+  return this.http.get<FlightResponseDto>(`${this.baseUrl}/flights/live`)
+    .pipe(
+      tap(response => localStorage.setItem('last-flights', JSON.stringify(response))),
+      catchError(() => {
+        const cached = localStorage.getItem('last-flights');
+        return cached ? of(JSON.parse(cached)) : throwError(() => new Error('No cached data'));
+      })
+    );
+}
+```
+
+### 5. GraphQL Integration
+
+Migrate from REST to GraphQL for more efficient data fetching:
+
+```graphql
+query GetFlights($filters: FlightFilters) {
+  flights(filters: $filters) {
+    icao24
+    callsign
+    position { latitude longitude }
+    operator
+    onGround
+  }
+}
+```
+
+Benefits:
+- Request only needed fields
+- Single endpoint for all queries
+- Real-time subscriptions built-in
+
+## Related Documentation
+
+- [Architecture Overview](/architecture/overview) - Application structure
+- [State Management](/architecture/state-management) - How API data flows into state

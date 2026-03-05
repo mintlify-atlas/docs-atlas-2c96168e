@@ -1,0 +1,273 @@
+---
+title: FlightsShellComponent
+description: Main shell container that orchestrates flight tracking UI components
+---
+
+## Overview
+
+`FlightsShellComponent` is the primary orchestration container for the flight tracking application. It manages the interaction between the map view, flight list, and detail panels, while handling responsive behavior for desktop and mobile viewports.
+
+**Location:** `src/app/features/flights/flights-shell/flights-shell.component.ts`
+
+## Responsibilities
+
+The shell component coordinates multiple aspects of the flight tracking UI:
+
+- **Component Orchestration**: Manages child components (FlightsMapComponent, FlightsListComponent, FlightsFilterMenuComponent)
+- **Viewport Detection**: Switches between desktop overlay and mobile bottom sheet based on screen size
+- **Detail View Management**: Opens/closes flight detail UI when flights are selected
+- **Data Polling**: Initializes smart polling for flight data updates
+- **Photo Loading**: Fetches aircraft photos from the API when flights are selected
+- **Selection Sync**: Auto-clears selection when filtered flights change
+
+## Architecture
+
+### Component Tree
+
+```
+FlightsShellComponent
+├── FlightsMapComponent (map display)
+├── FlightsListComponent (flight table)
+├── FlightsFilterMenuComponent (filter controls)
+├── LoadingOverlayComponent (loading state)
+└── ServerErrorOverlayComponent (error state)
+```
+
+### Dependency Injection
+
+```typescript
+protected readonly store = inject(FlightsStoreService);
+private readonly overlay = inject(Overlay);
+private readonly viewContainerRef = inject(ViewContainerRef);
+private readonly api = inject(FlightsApiService);
+protected readonly viewport = inject(ViewportService);
+private readonly bottomSheet = inject(MatBottomSheet);
+```
+
+## Viewport Detection
+
+The component uses Angular effects to reactively respond to viewport changes:
+
+```typescript
+effect(() => {
+  const selectedId = this.store.selectedFlightId();
+  const viewportMode = this.viewport.mode();
+
+  const changed =
+    selectedId !== this.lastSelectedId || viewportMode !== this.lastViewportMode;
+
+  if (!changed) return;
+
+  this.lastSelectedId = selectedId;
+  this.lastViewportMode = viewportMode;
+
+  if (selectedId) {
+    this.openFlightDetailUI(selectedId);
+  } else {
+    this.closeFlightDetailUI();
+  }
+});
+```
+
+### Desktop Mode
+
+When `viewport.isDesktop()` returns true:
+- Creates a CDK Overlay positioned at bottom-left
+- Renders `FlightDetailPanelComponent` in the overlay
+- Overlay configuration:
+  - Position: `left('30px').bottom('5%')`
+  - Size: `width: '310px', height: '80%'`
+  - No backdrop (allows map interaction)
+
+```typescript
+private openOverlayPanel(flightId: string, photo: AircraftPhoto | null): void {
+  this.overlayRef = this.overlay.create({
+    positionStrategy: this.overlay.position().global().left('30px').bottom('5%'),
+    width: '310px',
+    height: '80%',
+    hasBackdrop: false,
+    panelClass: 'flight-detail-overlay',
+  });
+
+  const portal = new ComponentPortal(FlightDetailPanelComponent, this.viewContainerRef);
+  const componentRef: ComponentRef<FlightDetailPanelComponent> =
+    this.overlayRef.attach(portal);
+
+  componentRef.setInput('flightId', flightId);
+  componentRef.setInput('photo', photo);
+
+  this.panelClosedSub?.unsubscribe();
+  this.panelClosedSub = componentRef.instance.closed.subscribe(() => {
+    this.store.clearSelection();
+  });
+}
+```
+
+### Mobile Mode
+
+When on mobile viewport:
+- Opens Material bottom sheet
+- Renders `FlightDetailBottomSheetComponent`
+- No backdrop (allows map interaction)
+- Tracks dismiss reason to determine if selection should be cleared
+
+```typescript
+private openBottomSheet(flightId: string, photo: AircraftPhoto | null): void {
+  this.bottomSheetRef = this.bottomSheet.open(FlightDetailBottomSheetComponent, {
+    data: { flightId, photo },
+    hasBackdrop: false,
+    ariaLabel: `Flight details ${flightId}`,
+    panelClass: 'flight-detail-sheet',
+  });
+
+  this.bottomSheetRef.afterDismissed()
+    .pipe(take(1))
+    .subscribe((reason?: SheetCloseReason) => {
+      if (reason === 'user' || reason == null) {
+        this.store.clearSelection();
+      }
+    });
+}
+```
+
+## Flight Photo Loading
+
+When a flight is selected, the component fetches aircraft photos:
+
+```typescript
+private openFlightDetailUI(icao24: string): void {
+  this.closeFlightDetailUI();
+
+  this.api
+    .getPhotosByIcao24(icao24)
+    .pipe(
+      take(1),
+      catchError(() => of(null))
+    )
+    .subscribe(photoDto => {
+      let photo: AircraftPhoto | null = null;
+
+      if (photoDto) {
+        try {
+          photo = fromAircraftPhotoDto(photoDto);
+        } catch (e) {
+          console.warn('Invalid photo:', e);
+        }
+      }
+
+      if (this.viewport.isDesktop()) {
+        this.openOverlayPanel(icao24, photo);
+      } else {
+        this.openBottomSheet(icao24, photo);
+      }
+    });
+}
+```
+
+## Lifecycle
+
+### Initialization
+
+```typescript
+ngOnInit(): void {
+  this.store.startSmartPolling();
+}
+```
+
+Starts the smart polling mechanism to fetch flight data at dynamic intervals.
+
+### Selection Filtering Effect
+
+Auto-clears selection when the selected flight is no longer visible due to filters:
+
+```typescript
+effect(() => {
+  const selectedId = this.store.selectedFlightId();
+  if (!selectedId) return;
+
+  const visible = this.store.filteredFlights().some(f => f.icao24 === selectedId);
+  if (!visible) {
+    this.store.clearSelection();
+  }
+});
+```
+
+## UI State Management
+
+The component maintains references to active UI elements:
+
+```typescript
+private overlayRef: OverlayRef | null = null;
+private bottomSheetRef: MatBottomSheetRef<FlightDetailBottomSheetComponent> | null = null;
+private panelClosedSub: OutputRefSubscription | null = null;
+```
+
+These are properly cleaned up when switching between views:
+
+```typescript
+private closeFlightDetailUI(reason: SheetCloseReason = 'switch-flight'): void {
+  this.overlayRef?.dispose();
+  this.overlayRef = null;
+
+  this.panelClosedSub?.unsubscribe();
+  this.panelClosedSub = null;
+
+  this.bottomSheetRef?.dismiss(reason);
+  this.bottomSheetRef = null;
+}
+```
+
+## Usage Example
+
+The shell component is typically used as the main route component:
+
+```typescript
+// In routing configuration
+{
+  path: 'flights',
+  component: FlightsShellComponent
+}
+```
+
+The component template orchestrates child components:
+
+```html
+<!-- Simplified template structure -->
+<div class="flights-shell">
+  <app-flights-map [flights]="store.filteredFlights()" />
+  <app-flights-list />
+  <app-flights-filter-menu />
+  <app-loading-overlay *ngIf="store.loading()" />
+  <app-server-error-overlay *ngIf="store.error()" />
+</div>
+```
+
+## Key Features
+
+### Responsive Design
+- Automatically switches between desktop panel and mobile bottom sheet
+- No configuration required—driven by viewport service
+
+### Smart UI Management
+- Cleans up previous detail views before opening new ones
+- Prevents memory leaks through proper subscription cleanup
+- Handles rapid selection changes gracefully
+
+### Error Handling
+- Gracefully handles photo loading failures
+- Continues to display flight details even when photos are unavailable
+- Logs warnings for invalid photo data
+
+## Related Components
+
+- [FlightsMapComponent](/components/flights-map) - Map visualization
+- [FlightsListComponent](/components/flights-list) - Flight table
+- [FlightDetailPanelComponent](/components/flight-detail-panel) - Desktop detail view
+
+## Services Used
+
+- **FlightsStoreService** - State management for flights and selection
+- **FlightsApiService** - API calls for flight data and photos
+- **ViewportService** - Viewport size detection (desktop/mobile)
+- **Overlay** (CDK) - Desktop overlay management
+- **MatBottomSheet** - Mobile bottom sheet management

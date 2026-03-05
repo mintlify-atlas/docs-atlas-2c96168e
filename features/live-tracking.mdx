@@ -1,0 +1,319 @@
+---
+title: Live Tracking System
+description: Real-time flight data polling with smart intervals and data freshness indicators
+icon: radio
+---
+
+## Overview
+
+Air Tracker implements a sophisticated real-time flight tracking system that automatically polls flight data from the backend API. The system uses smart polling intervals based on backend responses and provides visual indicators of data freshness.
+
+## Architecture
+
+The live tracking system is built on two core services:
+
+<CardGroup cols={2}>
+  <Card title="FlightsStoreService" icon="database" href="#flights-store-service">
+    State management with Angular signals
+  </Card>
+  <Card title="FlightsApiService" icon="cloud" href="#flights-api-service">
+    HTTP client for backend communication
+  </Card>
+</CardGroup>
+
+## Smart Polling System
+
+### How It Works
+
+The polling system adapts its refresh rate based on backend responses, ensuring optimal data freshness without overwhelming the API.
+
+```typescript
+// From FlightsStoreService
+startSmartPolling(): void {
+  this.stopPolling();
+  this.poll();
+}
+
+private poll(): void {
+  this._loading.set(true);
+  
+  this.activePollSub = this.api.getLiveFlights()
+    .pipe(
+      catchError((err: unknown) => {
+        console.error('❌ Polling failed:', err);
+        this._error.set('Error fetching flights');
+        this._loading.set(false);
+        
+        // Retry after 15 seconds on error
+        this.pollingTimeoutId = setTimeout(() => this.poll(), 15000);
+        return of(null);
+      })
+    )
+    .subscribe(response => {
+      if (!response) return;
+      
+      this._error.set(null);
+      this.updateStoreFromResponse(response);
+      
+      // Schedule next poll based on backend response
+      const nextPollMs = this.calculateNextPollInterval(response);
+      this.pollingTimeoutId = setTimeout(() => this.poll(), nextPollMs);
+    });
+}
+```
+
+<Info>
+The polling system automatically retries after 15 seconds if an error occurs, preventing permanent disconnection from the data stream.
+</Info>
+
+### Dynamic Intervals
+
+Polling intervals are determined by the backend response:
+
+```typescript
+private calculateNextPollInterval(response: FlightResponseDto): number {
+  const nextPollMs = response.nextUpdateInMs
+    ?? response.pollingIntervalMs
+    ?? 8000; // Default: 8 seconds
+  
+  this._nextUpdateInMs.set(nextPollMs);
+  this._nextUpdateAtMs.set(Date.now() + nextPollMs);
+  
+  if (response.pollingIntervalMs) {
+    this._currentPollingIntervalMs.set(response.pollingIntervalMs);
+  }
+  
+  return nextPollMs;
+}
+```
+
+<Tabs>
+  <Tab title="nextUpdateInMs">
+    Primary indicator - tells exactly when fresh data will be available
+  </Tab>
+  <Tab title="pollingIntervalMs">
+    Fallback interval if nextUpdateInMs is not provided
+  </Tab>
+  <Tab title="Default (8000ms)">
+    Used if neither field is present in the response
+  </Tab>
+</Tabs>
+
+## Data Freshness Indicators
+
+### Cache Age Warning
+
+The system monitors data freshness and warns users when data becomes stale:
+
+```typescript
+private updateStoreFromResponse(response: FlightResponseDto): void {
+  const flights = response.flights.map(mapFlightDtoToFlight);
+  const cacheAgeMs = response.cacheAgeMs ?? 0;
+  
+  this._flights.set(flights);
+  this._cacheAgeMs.set(cacheAgeMs);
+  this._lastUpdated.set(new Date());
+  this._loading.set(false);
+  
+  // Warn if data is more than 30 seconds old
+  if (cacheAgeMs > 30000) {
+    const cacheAgeSec = Math.round(cacheAgeMs / 1000);
+    this._warning.set(`⚠️ Data from ${cacheAgeSec}s ago (may be outdated)`);
+  } else {
+    this._warning.set(null);
+  }
+}
+```
+
+<Note>
+A warning appears when `cacheAgeMs` exceeds 30 seconds (30,000ms), indicating the data may be outdated.
+</Note>
+
+### State Signals
+
+The store exposes several readonly signals for tracking connection status:
+
+| Signal | Type | Description |
+|--------|------|-------------|
+| `loading` | `boolean` | True while fetching data |
+| `error` | `string \| null` | Error message if polling failed |
+| `warning` | `string \| null` | Data freshness warning |
+| `lastUpdated` | `Date \| null` | Timestamp of last successful update |
+| `cacheAgeMs` | `number` | Age of cached data from backend |
+| `nextUpdateInMs` | `number` | Milliseconds until next update |
+| `nextUpdateAtMs` | `number \| null` | Absolute timestamp of next update |
+| `currentPollingIntervalMs` | `number` | Current polling interval (default: 8000) |
+
+## API Service
+
+The `FlightsApiService` provides a simple HTTP wrapper:
+
+```typescript
+@Injectable({
+  providedIn: 'root',
+})
+export class FlightsApiService {
+  private readonly http = inject(HttpClient);
+  private readonly apiConfig = inject(ApiConfigService);
+  private readonly baseUrl = this.apiConfig.apiBaseUrl;
+  
+  /**
+   * GET /flights/live
+   * Returns FlightResponseDto with current flight data
+   */
+  getLiveFlights(): Observable<FlightResponseDto> {
+    return this.http.get<FlightResponseDto>(`${this.baseUrl}/flights/live`);
+  }
+}
+```
+
+## Auto-Refresh Behavior
+
+### Lifecycle Management
+
+Polling starts when the application initializes and can be stopped/started programmatically:
+
+```typescript
+// Start polling
+store.startSmartPolling();
+
+// Stop polling (cleanup)
+store.stopPolling();
+```
+
+<Tip>
+The `stopPolling()` method cleans up all timers and subscriptions, preventing memory leaks when the component is destroyed.
+</Tip>
+
+### Cleanup Implementation
+
+```typescript
+stopPolling(): void {
+  // Clear scheduled timeout
+  if (this.pollingTimeoutId) {
+    clearTimeout(this.pollingTimeoutId);
+    this.pollingTimeoutId = undefined;
+  }
+  
+  // Unsubscribe from active HTTP request
+  this.activePollSub?.unsubscribe();
+  this.activePollSub = null;
+  
+  this._loading.set(false);
+}
+```
+
+## Connection Status
+
+### Error States
+
+<Tabs>
+  <Tab title="Network Error">
+    ```typescript
+    // Automatic retry after 15 seconds
+    catchError((err: unknown) => {
+      console.error('❌ Polling failed:', err);
+      this._error.set('Error fetching flights');
+      this._loading.set(false);
+      this.pollingTimeoutId = setTimeout(() => this.poll(), 15000);
+      return of(null);
+    })
+    ```
+  </Tab>
+  <Tab title="Stale Data">
+    ```typescript
+    // Warning when cacheAgeMs > 30000
+    if (cacheAgeMs > 30000) {
+      const cacheAgeSec = Math.round(cacheAgeMs / 1000);
+      this._warning.set(`⚠️ Data from ${cacheAgeSec}s ago (may be outdated)`);
+    }
+    ```
+  </Tab>
+  <Tab title="Normal">
+    ```typescript
+    // Clear error and warning states
+    this._error.set(null);
+    this._warning.set(null);
+    ```
+  </Tab>
+</Tabs>
+
+## Flight Data Model
+
+Each flight contains comprehensive telemetry data:
+
+```typescript
+export interface Flight {
+  // Identity
+  icao24: string;
+  callsign: string | null;
+  registration: string | null;
+  
+  // Position
+  latitude: number | null;
+  longitude: number | null;
+  altitudeBaro: number | null;
+  altitudeGeo: number | null;
+  heading: number | null;
+  
+  // Status
+  onGround: boolean;
+  velocity: number | null;
+  verticalRate: number | null;
+  
+  // Aircraft details
+  operator: string | null;
+  operatorIcao: string | null;
+  model: string | null;
+  typecode: string | null;
+  category: string | null;
+  
+  // Metadata
+  timePosition?: number | null;
+  lastContact?: number;
+  originCountry: string;
+  squawk: string | null;
+  spi: boolean;
+}
+```
+
+## Usage Example
+
+```typescript
+import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import { FlightsStoreService } from './services/flights-store.service';
+
+@Component({
+  selector: 'app-flights',
+  template: `
+    <div>
+      @if (store.loading()) {
+        <p>Loading flights...</p>
+      }
+      @if (store.error()) {
+        <p class="error">{{ store.error() }}</p>
+      }
+      @if (store.warning()) {
+        <p class="warning">{{ store.warning() }}</p>
+      }
+      <p>Flights: {{ store.flights().length }}</p>
+      <p>Last updated: {{ store.lastUpdated() | date:'short' }}</p>
+    </div>
+  `
+})
+export class FlightsComponent implements OnInit, OnDestroy {
+  store = inject(FlightsStoreService);
+  
+  ngOnInit() {
+    this.store.startSmartPolling();
+  }
+  
+  ngOnDestroy() {
+    this.store.stopPolling();
+  }
+}
+```
+
+<Info>
+The store uses Angular signals for reactive state management, automatically triggering UI updates when flight data changes.
+</Info>

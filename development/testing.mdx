@@ -1,0 +1,491 @@
+---
+title: Testing
+description: Testing guide for Air Tracker
+---
+
+Air Tracker uses Jasmine and Karma for unit testing. This guide covers how to run tests, write tests, and maintain good test coverage.
+
+## Test Framework
+
+Air Tracker uses the following testing tools:
+
+- **Jasmine** (~5.9.0) - Testing framework with BDD-style syntax
+- **Karma** (~6.4.0) - Test runner that executes tests in real browsers
+- **@angular/build:karma** - Angular's Karma builder integration
+- **karma-chrome-launcher** - Runs tests in Chrome/Chromium
+- **karma-coverage** - Generates code coverage reports
+
+## Running Tests
+
+### Run All Tests
+
+Run the complete test suite:
+
+<CodeGroup>
+```bash npm
+npm test
+```
+
+```bash Angular CLI
+ng test
+```
+</CodeGroup>
+
+This will:
+1. Start the Karma test runner
+2. Launch Chrome browser
+3. Execute all `*.spec.ts` files
+4. Watch for file changes and re-run tests
+
+### Single Run (CI Mode)
+
+Run tests once without watching:
+
+<CodeGroup>
+```bash Terminal
+ng test --watch=false
+```
+</CodeGroup>
+
+### Headless Mode
+
+Run tests in headless Chrome (useful for CI/CD):
+
+<CodeGroup>
+```bash Terminal
+ng test --watch=false --browsers=ChromeHeadless
+```
+</CodeGroup>
+
+### Run Specific Tests
+
+Run tests matching a pattern:
+
+<CodeGroup>
+```bash Terminal
+ng test --include='**/flights-shell.component.spec.ts'
+```
+</CodeGroup>
+
+## Test Configuration
+
+Tests are configured in `angular.json`:
+
+```json
+"test": {
+  "builder": "@angular/build:karma",
+  "options": {
+    "polyfills": [
+      "zone.js",
+      "zone.js/testing"
+    ],
+    "tsConfig": "tsconfig.spec.json",
+    "inlineStyleLanguage": "scss",
+    "assets": [
+      {
+        "glob": "**/*",
+        "input": "public"
+      }
+    ],
+    "styles": [
+      "src/styles.scss"
+    ]
+  }
+}
+```
+
+## Writing Tests
+
+### Component Tests
+
+Air Tracker uses standalone components, so tests import the component directly.
+
+Example from `flights-shell.component.spec.ts`:
+
+```typescript
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { FlightsShellComponent } from './flights-shell.component';
+
+describe('FlightsShellComponent', () => {
+  let component: FlightsShellComponent;
+  let fixture: ComponentFixture<FlightsShellComponent>;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [FlightsShellComponent] // Standalone component
+    })
+    .compileComponents();
+
+    fixture = TestBed.createComponent(FlightsShellComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  it('should create', () => {
+    expect(component).toBeTruthy();
+  });
+});
+```
+
+### Service Tests
+
+Example service test structure:
+
+```typescript
+import { TestBed } from '@angular/core/testing';
+import { FlightsStoreService } from './flights-store.service';
+import { FlightsApiService } from './flights-api.service';
+
+describe('FlightsStoreService', () => {
+  let service: FlightsStoreService;
+  let apiService: jasmine.SpyObj<FlightsApiService>;
+
+  beforeEach(() => {
+    // Create spy object
+    const apiSpy = jasmine.createSpyObj('FlightsApiService', [
+      'getLiveFlights',
+      'getPhotosByIcao24'
+    ]);
+
+    TestBed.configureTestingModule({
+      providers: [
+        FlightsStoreService,
+        { provide: FlightsApiService, useValue: apiSpy }
+      ]
+    });
+
+    service = TestBed.inject(FlightsStoreService);
+    apiService = TestBed.inject(FlightsApiService) as jasmine.SpyObj<FlightsApiService>;
+  });
+
+  it('should be created', () => {
+    expect(service).toBeTruthy();
+  });
+
+  it('should update filters', () => {
+    service.updateFilters({ operator: 'Iberia' });
+    expect(service.filteredFlights()).toBeDefined();
+  });
+});
+```
+
+### Testing Components with Signals
+
+Air Tracker uses Angular signals extensively. Example:
+
+```typescript
+import { signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { PollingStatusComponent } from './polling-status.component';
+
+describe('PollingStatusComponent', () => {
+  let component: PollingStatusComponent;
+  let fixture: ComponentFixture<PollingStatusComponent>;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [PollingStatusComponent]
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(PollingStatusComponent);
+    component = fixture.componentInstance;
+  });
+
+  it('should calculate remaining time correctly', () => {
+    // Set input signals
+    fixture.componentRef.setInput('nextUpdateAtMs', Date.now() + 5000);
+    fixture.componentRef.setInput('intervalMs', 8000);
+    fixture.detectChanges();
+
+    // Test computed signal
+    const remaining = component.remainingSec();
+    expect(remaining).toBeGreaterThan(0);
+    expect(remaining).toBeLessThanOrEqual(5);
+  });
+});
+```
+
+### Testing HTTP Services
+
+Example testing HTTP calls:
+
+```typescript
+import { TestBed } from '@angular/core/testing';
+import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
+import { FlightsApiService } from './flights-api.service';
+import { ApiConfigService } from '../../../core/services/api-config.service';
+
+describe('FlightsApiService', () => {
+  let service: FlightsApiService;
+  let httpMock: HttpTestingController;
+  let apiConfig: jasmine.SpyObj<ApiConfigService>;
+
+  beforeEach(() => {
+    const apiConfigSpy = jasmine.createSpyObj('ApiConfigService', [], {
+      apiBaseUrl: 'http://test-api.com'
+    });
+
+    TestBed.configureTestingModule({
+      imports: [HttpClientTestingModule],
+      providers: [
+        FlightsApiService,
+        { provide: ApiConfigService, useValue: apiConfigSpy }
+      ]
+    });
+
+    service = TestBed.inject(FlightsApiService);
+    httpMock = TestBed.inject(HttpTestingController);
+    apiConfig = TestBed.inject(ApiConfigService) as jasmine.SpyObj<ApiConfigService>;
+  });
+
+  afterEach(() => {
+    httpMock.verify(); // Verify no outstanding requests
+  });
+
+  it('should fetch live flights', () => {
+    const mockResponse = {
+      time: 1234567890,
+      flights: [],
+      cacheAgeMs: 0,
+      pollingIntervalMs: 8000
+    };
+
+    service.getLiveFlights().subscribe(response => {
+      expect(response).toEqual(mockResponse);
+    });
+
+    const req = httpMock.expectOne('http://test-api.com/flights/live');
+    expect(req.request.method).toBe('GET');
+    req.flush(mockResponse);
+  });
+});
+```
+
+### Testing Async Operations
+
+Use `fakeAsync` and `tick` for timing control:
+
+```typescript
+import { fakeAsync, tick } from '@angular/core/testing';
+
+it('should poll after interval', fakeAsync(() => {
+  service.startSmartPolling();
+  
+  tick(8000); // Advance time by 8 seconds
+  
+  expect(apiService.getLiveFlights).toHaveBeenCalled();
+}));
+```
+
+## Test Patterns from Codebase
+
+### Basic Component Test
+
+Location: `src/app/features/flights/flights-shell/flights-shell.component.spec.ts`
+
+```typescript
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { FlightsShellComponent } from './flights-shell.component';
+
+describe('FlightsShellComponent', () => {
+  let component: FlightsShellComponent;
+  let fixture: ComponentFixture<FlightsShellComponent>;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [FlightsShellComponent]
+    })
+    .compileComponents();
+
+    fixture = TestBed.createComponent(FlightsShellComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  it('should create', () => {
+    expect(component).toBeTruthy();
+  });
+});
+```
+
+### Service with Dependencies
+
+Test services with mocked dependencies:
+
+```typescript
+const mockStore = jasmine.createSpyObj('FlightsStoreService', [
+  'setSelectedFlightId',
+  'clearSelection'
+]);
+
+TestBed.configureTestingModule({
+  providers: [
+    { provide: FlightsStoreService, useValue: mockStore }
+  ]
+});
+```
+
+## Code Coverage
+
+### Generate Coverage Report
+
+<CodeGroup>
+```bash Terminal
+ng test --code-coverage --watch=false
+```
+</CodeGroup>
+
+Coverage reports are generated in `coverage/` directory.
+
+### View Coverage Report
+
+Open `coverage/index.html` in your browser:
+
+<CodeGroup>
+```bash Terminal
+open coverage/index.html
+```
+</CodeGroup>
+
+### Coverage Goals
+
+Aim for:
+- **Statements**: 80%+
+- **Branches**: 75%+
+- **Functions**: 80%+
+- **Lines**: 80%+
+
+## Testing Best Practices
+
+### 1. Test Behavior, Not Implementation
+
+```typescript
+// Good: Tests behavior
+it('should display flight count', () => {
+  fixture.componentRef.setInput('flights', mockFlights);
+  fixture.detectChanges();
+  const element = fixture.nativeElement.querySelector('.flight-count');
+  expect(element.textContent).toContain('3 flights');
+});
+
+// Bad: Tests implementation details
+it('should call updateFlightCount', () => {
+  spyOn(component, 'updateFlightCount');
+  component.ngOnInit();
+  expect(component.updateFlightCount).toHaveBeenCalled();
+});
+```
+
+### 2. Use Descriptive Test Names
+
+```typescript
+// Good
+it('should filter flights by operator when operator filter is set', () => {});
+
+// Bad
+it('should work', () => {});
+```
+
+### 3. Arrange-Act-Assert Pattern
+
+```typescript
+it('should calculate remaining seconds', () => {
+  // Arrange
+  const futureTime = Date.now() + 5000;
+  fixture.componentRef.setInput('nextUpdateAtMs', futureTime);
+  
+  // Act
+  fixture.detectChanges();
+  const result = component.remainingSec();
+  
+  // Assert
+  expect(result).toBeGreaterThan(0);
+});
+```
+
+### 4. Mock External Dependencies
+
+Always mock HTTP calls, timers, and external services:
+
+```typescript
+const apiSpy = jasmine.createSpyObj('FlightsApiService', ['getLiveFlights']);
+apiSpy.getLiveFlights.and.returnValue(of(mockData));
+```
+
+### 5. Clean Up After Tests
+
+```typescript
+afterEach(() => {
+  httpMock.verify();
+  fixture.destroy();
+});
+```
+
+## Debugging Tests
+
+### Run Tests in Debug Mode
+
+1. Run tests: `ng test`
+2. Click "Debug" button in Karma browser window
+3. Open DevTools (F12)
+4. Set breakpoints in test code
+5. Refresh to re-run tests
+
+### Focus on Specific Tests
+
+```typescript
+// Run only this test
+fit('should work', () => {});
+
+// Run only this suite
+fdescribe('MyComponent', () => {});
+
+// Skip this test
+xit('should work', () => {});
+
+// Skip this suite
+xdescribe('MyComponent', () => {});
+```
+
+## Common Testing Issues
+
+### Issue: "No provider for HttpClient"
+
+**Solution**: Import `HttpClientTestingModule`
+
+```typescript
+import { HttpClientTestingModule } from '@angular/common/http/testing';
+
+TestBed.configureTestingModule({
+  imports: [HttpClientTestingModule]
+});
+```
+
+### Issue: "Can't bind to 'input' since it isn't a known property"
+
+**Solution**: Import the component/module that declares the directive
+
+```typescript
+TestBed.configureTestingModule({
+  imports: [MyComponent, MaterialModule]
+});
+```
+
+### Issue: Async test timeout
+
+**Solution**: Increase timeout or use `fakeAsync`
+
+```typescript
+it('should complete async operation', (done) => {
+  service.getData().subscribe(data => {
+    expect(data).toBeDefined();
+    done();
+  });
+}, 10000); // 10 second timeout
+```
+
+## Next Steps
+
+- Review [code style guidelines](/development/code-style)
+- Learn about [component development](/development/component-guidelines)
+- Read the [contributing guide](/development/contributing)

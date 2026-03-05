@@ -1,0 +1,251 @@
+---
+title: 'Flights Filter Menu Component'
+description: 'Interactive menu for filtering flights by operator and ground status'
+---
+
+## Overview
+
+The `FlightsFilterMenuComponent` provides a Material Design menu with filtering controls for the flights list. Users can filter flights by airline operator and by flight state (all/flying/on ground). The component integrates with the `FlightsStoreService` to reactively update the displayed flights.
+
+**Selector:** `app-flights-filter-menu`
+
+**Location:** `src/app/features/flights/ui/flights-filter-menu/flights-filter-menu.component.ts:15`
+
+## Component API
+
+### Inputs
+
+This component has no `@Input()` properties. It's a standalone filter UI that communicates directly with the `FlightsStoreService`.
+
+### Outputs
+
+This component has no `@Output()` events. Filter changes are automatically synchronized to the store service.
+
+## Store Integration
+
+The component injects and uses the `FlightsStoreService` to:
+
+1. **Read operator list**: `store.operatorList()` - Provides the list of unique operators
+2. **Update filters**: `store.updateFilters()` - Applies user-selected filters
+
+**Reactive Updates**: The component listens to `filterForm.valueChanges` and immediately updates the store, which triggers computed signal recalculation in the store's `filteredFlights` computed property.
+
+**Source:** `flights-filter-menu.component.ts:31-51`
+
+## Filter Form Structure
+
+The component uses a reactive form with two controls:
+
+```typescript
+filterForm = new FormGroup({
+  operator: new FormControl<string[] | null>(['']),
+  onGround: new FormControl<'all' | 'flying' | 'onGround'>('all')
+});
+```
+
+**Source:** `flights-filter-menu.component.ts:35-38`
+
+### Operator Filter
+
+- **Control Type**: `FormControl<string[] | null>`
+- **Default**: `['']` (all operators)
+- **Behavior**: Single-selection list (despite array type, `[multiple]="false"` in template)
+- **Options**: 
+  - "All" (empty string)
+  - Dynamic list from `store.operatorList()`
+
+### Ground Status Filter
+
+- **Control Type**: `FormControl<'all' | 'flying' | 'onGround'>`
+- **Default**: `'all'`
+- **Options**:
+  - `'all'` - Show all flights
+  - `'flying'` - Show only airborne flights
+  - `'onGround'` - Show only grounded aircraft
+
+## Form Change Handling
+
+On initialization, the component subscribes to form changes:
+
+```typescript
+ngOnInit() {
+  this.filterForm.valueChanges
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe(value => {
+      const operatorArray = value.operator ?? [];
+      const operator = operatorArray[0] || null;
+
+      this.store.updateFilters({
+        operator,
+        onGround: value.onGround ?? 'all',
+      });
+    });
+}
+```
+
+**Key Points:**
+- Automatically unsubscribes on component destroy using `takeUntilDestroyed`
+- Extracts first operator from array (converts multi-select to single value)
+- Null/undefined safety with fallback values
+- Directly updates store filters
+
+**Source:** `flights-filter-menu.component.ts:40-52`
+
+## Template Structure
+
+The component renders a Material menu triggered by a button:
+
+### Menu Trigger
+
+```html
+<!-- From flights-filter-menu.component.html:1-4 -->
+<button class="filters-icon" mat-icon-button [matMenuTriggerFor]="menu"
+  aria-label="Filter icon-button with a menu">
+  <mat-icon>tune</mat-icon>
+</button>
+```
+
+### Operator Selection
+
+```html
+<!-- From flights-filter-menu.component.html:9-22 -->
+<section class="filters-menu__section">
+  <div class="filters-menu__section-label">OPERATOR ({{store.operatorList().length}})</div>
+  <div class="filters-menu__list-scroll">
+    <mat-selection-list [multiple]="false" formControlName="operator" (click)="$event.stopPropagation()">
+      <mat-list-option value="">
+        All
+      </mat-list-option>
+      @for (operator of store.operatorList(); track $index) {
+        <mat-list-option [value]="operator">
+          {{ operator }}
+        </mat-list-option>
+      }
+    </mat-selection-list>
+  </div>
+</section>
+```
+
+**Features:**
+- Shows count of available operators
+- Scrollable list container
+- "All" option to clear filter
+- Dynamic operator options from store
+- Prevents menu close on click with `stopPropagation()`
+
+### Ground Status Toggle
+
+```html
+<!-- From flights-filter-menu.component.html:25-31 -->
+<section class="filters-menu__section">
+  <div class="filters-menu__section-label">STATE</div>
+  <mat-radio-group formControlName="onGround" (click)="$event.stopPropagation()">
+    <mat-radio-button value="all">All</mat-radio-button>
+    <mat-radio-button value="flying">Flying</mat-radio-button>
+    <mat-radio-button value="onGround">On Ground</mat-radio-button>
+  </mat-radio-group>
+</section>
+```
+
+**Features:**
+- Radio button group for exclusive selection
+- Three mutually exclusive states
+- Prevents menu close on click
+
+## Usage Examples
+
+### In Flights Shell
+
+```html
+<!-- From flights-shell.component.html:20 -->
+<app-flights-filter-menu></app-flights-filter-menu>
+```
+
+Typically placed in the toolbar or header area of the flights view.
+
+### In Flights List
+
+```html
+<!-- From flights-list.component.html:7 -->
+<app-flights-filter-menu></app-flights-filter-menu>
+```
+
+Embedded directly in the flights list component toolbar.
+
+### Standalone Usage
+
+```html
+<!-- No configuration needed -->
+<app-flights-filter-menu></app-flights-filter-menu>
+```
+
+The component is fully self-contained and requires no inputs.
+
+## Store Filter Application
+
+When filters change, the store's `filteredFlights` computed signal automatically recalculates:
+
+```typescript
+// From flights-store.service.ts:87-107
+readonly filteredFlights = computed(() => {
+  const allFlights = this._flights();
+  const { operator, onGround } = this._filters();
+
+  return allFlights.filter(flight => {
+    // Filter by operator
+    if (!operator || operator === '') return true;
+    
+    if (operator === 'Other') {
+      return flight.operator == null || flight.operator === '';
+    }
+    
+    return flight.operator === operator;
+  }).filter(flight => {
+    // Filter by ground status
+    if (onGround === 'all') return true;
+    if (onGround === 'flying') return !flight.onGround;
+    if (onGround === 'onGround') return flight.onGround;
+    return true;
+  });
+});
+```
+
+**Filter Logic:**
+1. **Operator Filter**:
+   - Empty string or null = show all
+   - "Other" = show flights with null/empty operator
+   - Specific operator = exact match
+
+2. **Ground Status Filter**:
+   - `'all'` = no filtering
+   - `'flying'` = only flights with `onGround === false`
+   - `'onGround'` = only flights with `onGround === true`
+
+## Dependencies
+
+- **Material Modules**:
+  - `MatIconModule` - Filter icon
+  - `MatMenuModule` - Dropdown menu
+  - `MatListModule` - Operator selection list
+  - `MatRadioModule` - Ground status radio buttons
+  - `MatFormFieldModule` - Form field styling
+  - `MatSelectModule` - Select component
+  - `MatButtonModule` - Menu trigger button
+
+- **Angular Modules**:
+  - `ReactiveFormsModule` - Form controls
+  - `@angular/core/rxjs-interop` - Auto-unsubscribe helper
+
+- **Services**:
+  - `FlightsStoreService` - State management and filter application
+
+## Features
+
+- Zero-configuration standalone component
+- Reactive form with automatic store synchronization
+- Dynamic operator list from current flights
+- Prevents accidental menu closure during interaction
+- Automatic cleanup on destroy
+- Type-safe filter values
+- Material Design styling
+- Accessible ARIA labels

@@ -1,0 +1,448 @@
+---
+title: 'FlightsStoreService'
+description: 'Reactive state management service for flight data with smart polling and filtering'
+icon: 'database'
+---
+
+## Overview
+
+`FlightsStoreService` is the central state management service for the Air Tracker application. It manages flight data, filters, selection state, and handles smart polling with dynamic intervals based on backend responses.
+
+This service uses Angular signals for reactive state management, providing automatic change detection and computed values.
+
+## Location
+
+```
+src/app/features/flights/services/flights-store.service.ts
+```
+
+## Public Signals (Read-only State)
+
+All public signals are read-only and automatically trigger change detection when their values change.
+
+### flights
+
+```typescript
+readonly flights: Signal<Flight[]>
+```
+
+Array of all loaded flight objects. Each flight contains position, velocity, and aircraft metadata.
+
+### selectedFlightId
+
+```typescript
+readonly selectedFlightId: Signal<string | null>
+```
+
+The ICAO24 identifier of the currently selected flight, or `null` if no flight is selected.
+
+### loading
+
+```typescript
+readonly loading: Signal<boolean>
+```
+
+Indicates whether a flight data request is currently in progress.
+
+### error
+
+```typescript
+readonly error: Signal<string | null>
+```
+
+Error message if the last request failed, or `null` if no error.
+
+### warning
+
+```typescript
+readonly warning: Signal<string | null>
+```
+
+Warning message (e.g., when data is outdated), or `null` if no warning.
+
+### lastUpdated
+
+```typescript
+readonly lastUpdated: Signal<Date | null>
+```
+
+Timestamp of the last successful data update.
+
+### cacheAgeMs
+
+```typescript
+readonly cacheAgeMs: Signal<number>
+```
+
+Age of the cached data in milliseconds (from backend response).
+
+### nextUpdateInMs
+
+```typescript
+readonly nextUpdateInMs: Signal<number>
+```
+
+Time until the next scheduled update in milliseconds.
+
+### nextUpdateAtMs
+
+```typescript
+readonly nextUpdateAtMs: Signal<number | null>
+```
+
+Absolute timestamp (in milliseconds) when the next update will occur.
+
+### currentPollingIntervalMs
+
+```typescript
+readonly currentPollingIntervalMs: Signal<number>
+```
+
+Current polling interval in milliseconds. Defaults to 8000ms (8 seconds).
+
+## Computed Signals (Derived State)
+
+Computed signals automatically recalculate when their dependencies change.
+
+### operatorList
+
+```typescript
+readonly operatorList: Signal<string[]>
+```
+
+Unique list of airline operators from all flights, sorted alphabetically. Flights with `null` operators are grouped as 'Other' and sorted to the end.
+
+**Example:**
+```typescript
+['Iberia', 'Ryanair', 'Vueling', 'Other']
+```
+
+**Source:** `flights-store.service.ts:68-80`
+
+### filteredFlights
+
+```typescript
+readonly filteredFlights: Signal<Flight[]>
+```
+
+Flights filtered by current filter criteria (operator and ground status). Automatically updates when filters or flights change.
+
+**Filter Logic:**
+- **Operator filter:** Matches exact operator name, or 'Other' for null/empty operators
+- **Ground status filter:** 'all' (no filter), 'flying' (onGround = false), or 'onGround' (onGround = true)
+
+**Source:** `flights-store.service.ts:87-107`
+
+## Public Methods
+
+### updateFilters()
+
+Update flight filters (partial merge with current filters).
+
+<ParamField path="newFilters" type="Partial<FlightFilters>" required>
+  Partial filter object containing:
+  - `operator`: Airline operator name or null
+  - `onGround`: 'all' | 'flying' | 'onGround'
+</ParamField>
+
+**Signature:**
+```typescript
+updateFilters(newFilters: Partial<FlightFilters>): void
+```
+
+**Usage Example:**
+```typescript
+import { inject, Component } from '@angular/core';
+import { FlightsStoreService } from './flights-store.service';
+
+@Component({
+  selector: 'app-filter-menu',
+  // ...
+})
+export class FilterMenuComponent {
+  store = inject(FlightsStoreService);
+
+  filterByOperator(operator: string | null): void {
+    this.store.updateFilters({ operator });
+  }
+
+  showOnlyFlying(): void {
+    this.store.updateFilters({ onGround: 'flying' });
+  }
+}
+```
+
+**Source:** `flights-store.service.ts:118-120`
+
+### setSelectedFlightId()
+
+Set the currently selected flight by ICAO24 identifier.
+
+<ParamField path="id" type="string | null" required>
+  The ICAO24 identifier of the flight to select, or `null` to clear selection
+</ParamField>
+
+**Signature:**
+```typescript
+setSelectedFlightId(id: string | null): void
+```
+
+**Usage Example:**
+```typescript
+// Select a flight
+this.store.setSelectedFlightId('a1b2c3');
+
+// Clear selection
+this.store.setSelectedFlightId(null);
+```
+
+**Source:** `flights-store.service.ts:126-128`
+
+### clearSelection()
+
+Clear the current flight selection (convenience method).
+
+**Signature:**
+```typescript
+clearSelection(): void
+```
+
+**Usage Example:**
+```typescript
+import { inject, Component } from '@angular/core';
+import { FlightsStoreService } from './flights-store.service';
+
+@Component({
+  selector: 'app-flight-map',
+  // ...
+})
+export class FlightMapComponent {
+  store = inject(FlightsStoreService);
+
+  onMapClick(): void {
+    // Clear selection when user clicks on empty map area
+    this.store.clearSelection();
+  }
+}
+```
+
+**Source:** `flights-store.service.ts:133-135`
+
+### startSmartPolling()
+
+Start smart polling with dynamic intervals based on backend response. The service automatically:
+- Fetches live flight data
+- Updates all state signals
+- Adapts polling interval based on `nextUpdateInMs` from backend
+- Shows warnings when data is outdated (cache age > 30 seconds)
+- Retries on error with 15-second delay
+
+**Signature:**
+```typescript
+startSmartPolling(): void
+```
+
+**Usage Example:**
+```typescript
+import { Component, inject, OnInit } from '@angular/core';
+import { FlightsStoreService } from './flights-store.service';
+
+@Component({
+  selector: 'app-flights-shell',
+  // ...
+})
+export class FlightsShellComponent implements OnInit {
+  protected readonly store = inject(FlightsStoreService);
+
+  ngOnInit(): void {
+    // Start polling when component initializes
+    this.store.startSmartPolling();
+  }
+}
+```
+
+**Source:** `flights-store.service.ts:142-147`
+
+### stopPolling()
+
+Stop polling and clean up all resources (subscriptions, timers).
+
+**Signature:**
+```typescript
+stopPolling(): void
+```
+
+**Usage Example:**
+```typescript
+import { Component, inject, OnDestroy } from '@angular/core';
+import { FlightsStoreService } from './flights-store.service';
+
+@Component({
+  selector: 'app-flights-shell',
+  // ...
+})
+export class FlightsShellComponent implements OnDestroy {
+  protected readonly store = inject(FlightsStoreService);
+
+  ngOnDestroy(): void {
+    // Stop polling when component is destroyed
+    this.store.stopPolling();
+  }
+}
+```
+
+**Source:** `flights-store.service.ts:152-162`
+
+## Real-World Usage
+
+### Display Flight List with Filtering
+
+From `flights-list.component.ts:49`:
+
+```typescript
+import { Component, inject } from '@angular/core';
+import { FlightsStoreService } from '../services/flights-store.service';
+
+@Component({
+  selector: 'app-flights-list',
+  template: `
+    <div class="flight-list">
+      @for (flight of store.filteredFlights(); track flight.icao24) {
+        <div class="flight-item">
+          <span>{{ flight.callsign }}</span>
+          <span>{{ flight.operator }}</span>
+        </div>
+      }
+    </div>
+  `
+})
+export class FlightsListComponent {
+  store = inject(FlightsStoreService);
+}
+```
+
+### Track Selected Flight
+
+From `flights-shell.component.ts:72-99`:
+
+```typescript
+import { Component, effect, inject } from '@angular/core';
+import { FlightsStoreService } from '../services/flights-store.service';
+
+@Component({
+  selector: 'app-flights-shell',
+  // ...
+})
+export class FlightsShellComponent {
+  protected readonly store = inject(FlightsStoreService);
+
+  constructor() {
+    // React to selection changes
+    effect(() => {
+      const selectedId = this.store.selectedFlightId();
+      
+      if (selectedId) {
+        this.openFlightDetailUI(selectedId);
+      } else {
+        this.closeFlightDetailUI();
+      }
+    });
+
+    // Auto-clear selection when flight is filtered out
+    effect(() => {
+      const selectedId = this.store.selectedFlightId();
+      if (!selectedId) return;
+
+      const visible = this.store.filteredFlights()
+        .some(f => f.icao24 === selectedId);
+      
+      if (!visible) {
+        this.store.clearSelection();
+      }
+    });
+  }
+}
+```
+
+### Filter UI with Operator Dropdown
+
+From `flights-filter-menu.component.ts:31`:
+
+```typescript
+import { Component, inject } from '@angular/core';
+import { FlightsStoreService } from '../../services/flights-store.service';
+
+@Component({
+  selector: 'app-flights-filter-menu',
+  template: `
+    <select (change)="onOperatorChange($event)">
+      <option value="">All Operators</option>
+      @for (operator of store.operatorList(); track operator) {
+        <option [value]="operator">{{ operator }}</option>
+      }
+    </select>
+  `
+})
+export class FlightsFilterMenuComponent {
+  store = inject(FlightsStoreService);
+
+  onOperatorChange(event: Event): void {
+    const operator = (event.target as HTMLSelectElement).value;
+    this.store.updateFilters({ 
+      operator: operator || null 
+    });
+  }
+}
+```
+
+## Smart Polling Behavior
+
+The service implements intelligent polling with these features:
+
+1. **Dynamic Intervals**: Adapts to backend's `nextUpdateInMs` or `pollingIntervalMs`
+2. **Cache Age Warnings**: Shows warning when data is older than 30 seconds
+3. **Error Recovery**: Retries failed requests after 15 seconds
+4. **Resource Cleanup**: Automatically cancels in-flight requests when starting new polls
+
+**Polling Flow** (from `flights-store.service.ts:175-202`):
+
+```typescript
+private poll(): void {
+  this._loading.set(true);
+  
+  this.api.getLiveFlights()
+    .pipe(
+      catchError((err) => {
+        console.error('Polling failed:', err);
+        this._error.set('Error fetching flights');
+        this._loading.set(false);
+        
+        // Retry after 15 seconds
+        this.pollingTimeoutId = setTimeout(() => this.poll(), 15000);
+        return of(null);
+      })
+    )
+    .subscribe(response => {
+      if (!response) return;
+      
+      this._error.set(null);
+      this.updateStoreFromResponse(response);
+      
+      // Schedule next poll based on backend response
+      const nextPollMs = this.calculateNextPollInterval(response);
+      this.pollingTimeoutId = setTimeout(() => this.poll(), nextPollMs);
+    });
+}
+```
+
+## Dependencies
+
+The service automatically injects:
+
+- `FlightsApiService` - For fetching live flight data from the backend
+
+## See Also
+
+- [FlightsApiService](/api/flights-api-service) - HTTP API service used by this store
+- [MapMarkerService](/api/map-marker-service) - Map marker management that consumes this store
+- [Flight Filters](/api/flight-filters) - Filter model structure

@@ -1,0 +1,307 @@
+---
+title: 'Flight DTO'
+description: 'Data Transfer Objects for flight data from the backend API'
+---
+
+## Overview
+
+The Flight DTOs define the structure of flight data received from the backend API. The `FlightResponseDto` wraps an array of `FlightDto` objects along with metadata about the response timing and caching.
+
+## FlightResponseDto Interface
+
+The top-level response structure returned by the flights API endpoint.
+
+```typescript
+export interface FlightResponseDto {
+  time: number;
+  flights: FlightDto[];
+  cacheAgeMs?: number;
+  pollingIntervalMs?: number;
+  nextUpdateInMs?: number;
+}
+```
+
+### Properties
+
+<ResponseField name="time" type="number" required>
+  Unix timestamp (seconds) when the flight data was retrieved from the source
+</ResponseField>
+
+<ResponseField name="flights" type="FlightDto[]" required>
+  Array of flight data objects. Each object represents one aircraft
+</ResponseField>
+
+<ResponseField name="cacheAgeMs" type="number">
+  Age of the cached data in milliseconds. Indicates how old the data is from the cache
+</ResponseField>
+
+<ResponseField name="pollingIntervalMs" type="number">
+  Recommended polling interval in milliseconds for the next request
+</ResponseField>
+
+<ResponseField name="nextUpdateInMs" type="number">
+  Milliseconds until the next data update is expected to be available
+</ResponseField>
+
+## FlightDto Interface
+
+Represents individual flight data as received from the backend API.
+
+```typescript
+export interface FlightDto {
+  icao24: string;
+  callsign: string | null;
+  originCountry: string;
+  timePosition: number | null;
+  lastContact: number;
+  latitude: number | null;
+  longitude: number | null;
+  altitudeBaro: number | null;
+  altitudeGeo: number | null;
+  heading: number | null;
+  velocity: number | null;
+  onGround: boolean;
+  category: string | null;
+  model: string | null;
+  operator: string | null;
+  operatorIcao: string | null;
+  owner: string | null;
+  typecode: string | null;
+  registration: string | null;
+  verticalRate: number | null;
+  squawk: string | null;
+  spi: boolean;
+}
+```
+
+### Properties
+
+<ResponseField name="icao24" type="string" required>
+  Unique ICAO 24-bit address of the aircraft in hexadecimal format. This is the primary identifier for each aircraft
+</ResponseField>
+
+<ResponseField name="callsign" type="string | null">
+  Aircraft callsign or flight number (e.g., "UAL123"). May be null if not transmitted
+</ResponseField>
+
+<ResponseField name="originCountry" type="string" required>
+  Country of aircraft registration
+</ResponseField>
+
+<ResponseField name="timePosition" type="number | null">
+  Unix timestamp (seconds) of the last position report. Null if position timing is not available
+</ResponseField>
+
+<ResponseField name="lastContact" type="number" required>
+  Unix timestamp (seconds) of the last message received from the aircraft
+</ResponseField>
+
+<ResponseField name="latitude" type="number | null">
+  WGS-84 latitude coordinate in decimal degrees. Null if position is unavailable
+</ResponseField>
+
+<ResponseField name="longitude" type="number | null">
+  WGS-84 longitude coordinate in decimal degrees. Null if position is unavailable
+</ResponseField>
+
+<ResponseField name="altitudeBaro" type="number | null">
+  Barometric altitude in meters above sea level. Null if not transmitted
+</ResponseField>
+
+<ResponseField name="altitudeGeo" type="number | null">
+  Geometric (GPS-based) altitude in meters. Null if not available
+</ResponseField>
+
+<ResponseField name="heading" type="number | null">
+  True track angle in decimal degrees (0-360°). Represents the direction of movement, not aircraft nose direction. Null if not available
+</ResponseField>
+
+<ResponseField name="velocity" type="number | null">
+  Ground speed in meters per second. Null if not transmitted
+</ResponseField>
+
+<ResponseField name="onGround" type="boolean" required>
+  Ground status flag. True if aircraft is on the ground, false if airborne
+</ResponseField>
+
+<ResponseField name="category" type="string | null">
+  Aircraft category code according to ICAO classification (e.g., "A1" for light aircraft, "A3" for large aircraft)
+</ResponseField>
+
+<ResponseField name="model" type="string | null">
+  Full aircraft model name (e.g., "Boeing 737-800", "Airbus A320-200")
+</ResponseField>
+
+<ResponseField name="operator" type="string | null">
+  Name of the airline or operator flying the aircraft
+</ResponseField>
+
+<ResponseField name="operatorIcao" type="string | null">
+  ICAO airline designator code (e.g., "UAL" for United Airlines, "DAL" for Delta)
+</ResponseField>
+
+<ResponseField name="owner" type="string | null">
+  Legal owner of the aircraft
+</ResponseField>
+
+<ResponseField name="typecode" type="string | null">
+  ICAO aircraft type designator (e.g., "B738" for Boeing 737-800, "A320" for Airbus A320)
+</ResponseField>
+
+<ResponseField name="registration" type="string | null">
+  Aircraft registration number/tail number (e.g., "N12345" for US registrations)
+</ResponseField>
+
+<ResponseField name="verticalRate" type="number | null">
+  Vertical velocity in meters per second. Positive values indicate climb, negative values indicate descent. Null if not transmitted
+</ResponseField>
+
+<ResponseField name="squawk" type="string | null">
+  Transponder squawk code - a 4-digit octal code (e.g., "1200" for VFR, "7700" for emergency)
+</ResponseField>
+
+<ResponseField name="spi" type="boolean" required>
+  Special Position Identification pulse flag. True when pilot has activated the transponder ident feature
+</ResponseField>
+
+## Backend Response Structure
+
+### Example Response
+
+```json
+{
+  "time": 1678901234,
+  "flights": [
+    {
+      "icao24": "a1b2c3",
+      "callsign": "UAL123",
+      "originCountry": "United States",
+      "timePosition": 1678901234,
+      "lastContact": 1678901235,
+      "latitude": 37.7749,
+      "longitude": -122.4194,
+      "altitudeBaro": 10000,
+      "altitudeGeo": 10050,
+      "heading": 270,
+      "velocity": 250,
+      "onGround": false,
+      "category": "A3",
+      "model": "Boeing 737-900",
+      "operator": "United Airlines",
+      "operatorIcao": "UAL",
+      "owner": "United Airlines Inc",
+      "typecode": "B739",
+      "registration": "N12345",
+      "verticalRate": 5.2,
+      "squawk": "1200",
+      "spi": false
+    },
+    {
+      "icao24": "d4e5f6",
+      "callsign": "DAL456",
+      "originCountry": "United States",
+      "timePosition": 1678901230,
+      "lastContact": 1678901232,
+      "latitude": 40.7128,
+      "longitude": -74.0060,
+      "altitudeBaro": 8000,
+      "altitudeGeo": 8040,
+      "heading": 90,
+      "velocity": 200,
+      "onGround": false,
+      "category": "A3",
+      "model": "Airbus A321",
+      "operator": "Delta Air Lines",
+      "operatorIcao": "DAL",
+      "owner": "Delta Air Lines Inc",
+      "typecode": "A321",
+      "registration": "N67890",
+      "verticalRate": -2.5,
+      "squawk": "1200",
+      "spi": false
+    }
+  ],
+  "cacheAgeMs": 1500,
+  "pollingIntervalMs": 5000,
+  "nextUpdateInMs": 3500
+}
+```
+
+## Usage Examples
+
+### Fetching and Parsing Flight Data
+
+```typescript
+import type { FlightResponseDto, FlightDto } from './models/flight.dto';
+
+async function fetchFlights(): Promise<FlightResponseDto> {
+  const response = await fetch('/api/flights');
+  const data: FlightResponseDto = await response.json();
+  return data;
+}
+
+async function processFlights() {
+  const response = await fetchFlights();
+  
+  console.log(`Received ${response.flights.length} flights`);
+  console.log(`Data timestamp: ${new Date(response.time * 1000).toISOString()}`);
+  
+  if (response.cacheAgeMs) {
+    console.log(`Cache age: ${response.cacheAgeMs}ms`);
+  }
+  
+  response.flights.forEach((flight: FlightDto) => {
+    console.log(`${flight.icao24}: ${flight.callsign || 'Unknown'}`);
+  });
+}
+```
+
+### Converting to Application Model
+
+```typescript
+import type { FlightResponseDto } from './models/flight.dto';
+import { mapFlightDtoToFlight, type Flight } from './models/flight.model';
+
+async function getFlightsAsModels(): Promise<Flight[]> {
+  const response: FlightResponseDto = await fetchFlights();
+  return response.flights.map(mapFlightDtoToFlight);
+}
+```
+
+### Handling Polling Intervals
+
+```typescript
+import type { FlightResponseDto } from './models/flight.dto';
+
+class FlightPoller {
+  private timeoutId?: number;
+
+  async startPolling() {
+    const response: FlightResponseDto = await fetchFlights();
+    
+    // Process flights
+    this.processFlights(response.flights);
+    
+    // Schedule next poll based on server recommendation
+    const nextPollDelay = response.nextUpdateInMs || response.pollingIntervalMs || 5000;
+    
+    this.timeoutId = setTimeout(() => {
+      this.startPolling();
+    }, nextPollDelay);
+  }
+
+  stopPolling() {
+    if (this.timeoutId) {
+      clearTimeout(this.timeoutId);
+    }
+  }
+
+  private processFlights(flights: FlightDto[]) {
+    // Your flight processing logic
+  }
+}
+```
+
+## Source Location
+
+`~/workspace/source/src/app/shared/models/flight.dto.ts`

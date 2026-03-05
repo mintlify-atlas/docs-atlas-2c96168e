@@ -1,0 +1,460 @@
+---
+title: FlightDetailPanelComponent
+description: Desktop overlay panel displaying detailed flight information
+---
+
+## Overview
+
+`FlightDetailPanelComponent` is a desktop-only component that displays detailed information about a selected flight in an overlay panel. It shows flight data, aircraft information, and optional aircraft photos.
+
+**Location:** `src/app/features/flights/flight-detail-panel/flight-detail-panel.component.ts`
+
+## Key Features
+
+- **Rich Flight Information**: Displays comprehensive flight and aircraft data
+- **Aircraft Photos**: Shows aircraft images when available
+- **Real-time Updates**: Automatically updates when flight data changes
+- **Close Handling**: Emits events when user closes the panel
+- **Computed Data**: Reactive flight data lookup from store
+
+## Inputs
+
+<ParamField path="flightId" type="string" required>
+  The ICAO24 identifier of the flight to display. This is a required input signal.
+
+  ```typescript
+  flightId = input.required<string>();
+  ```
+
+  **Example:**
+  ```typescript
+  componentRef.setInput('flightId', 'a12345');
+  ```
+</ParamField>
+
+<ParamField path="photo" type="AircraftPhoto | null" default="null">
+  Optional aircraft photo data to display in the panel.
+
+  ```typescript
+  photo = input<AircraftPhoto | null>();
+  ```
+
+  **AircraftPhoto Interface:**
+  ```typescript
+  interface AircraftPhoto {
+    photographer: string;    // Photo credit
+    thumbnail: {
+      src: string;           // Thumbnail image URL
+      link: string;          // Link to full-size image
+    };
+    link: string;            // External link to photo source
+  }
+  ```
+
+  **Example:**
+  ```typescript
+  const photo: AircraftPhoto = {
+    photographer: 'John Doe',
+    thumbnail: {
+      src: 'https://example.com/thumb.jpg',
+      link: 'https://example.com/full.jpg'
+    },
+    link: 'https://example.com/photo-page'
+  };
+  componentRef.setInput('photo', photo);
+  ```
+</ParamField>
+
+## Outputs
+
+<ParamField path="closed" type="void">
+  Emits when the user clicks the close button. Parent components should listen to this event to clear selection and dispose the overlay.
+
+  ```typescript
+  closed = output<void>();
+  ```
+
+  **Usage:**
+  ```typescript
+  componentRef.instance.closed.subscribe(() => {
+    this.store.clearSelection();
+    this.overlayRef?.dispose();
+  });
+  ```
+</ParamField>
+
+## Component Structure
+
+```typescript
+@Component({
+  selector: 'app-flight-panel',
+  imports: [
+    AirlineDisplayComponent,
+    MatButtonModule,
+    MatIconModule,
+    CommonModule,
+    MatTooltipModule,
+    MatExpansionModule,
+    MatGridListModule,
+    UnitPipe,
+    FlightStatusLedComponent,
+    LogoComponent
+  ],
+  templateUrl: './flight-detail-panel.component.html',
+  styleUrl: './flight-detail-panel.component.scss',
+})
+export class FlightDetailPanelComponent
+```
+
+## Computed Flight Data
+
+The component uses a computed signal to reactively look up flight data:
+
+```typescript
+readonly store = inject(FlightsStoreService);
+
+readonly flight = computed<Flight | null>(() =>
+  this.store.flights().find(f => f.icao24 === this.flightId()) ?? null
+);
+```
+
+### Reactive Behavior
+
+- **Auto-updates**: When flight data changes in the store, the view automatically updates
+- **Null Safety**: Returns `null` if the flight is no longer in the store
+- **Efficient**: Only recomputes when `store.flights()` or `flightId()` changes
+
+## Close Handling
+
+```typescript
+close() {
+  this.closed.emit();
+}
+```
+
+The parent component (FlightsShellComponent) handles this event:
+
+```typescript
+// In FlightsShellComponent
+this.panelClosedSub = componentRef.instance.closed.subscribe(() => {
+  this.store.clearSelection();
+});
+```
+
+## Template Structure
+
+The component template displays flight information in sections:
+
+```html
+<div class="flight-detail-panel">
+  <!-- Header with close button -->
+  <div class="panel-header">
+    <h2>{{ flight()?.callsign || flight()?.icao24 }}</h2>
+    <button mat-icon-button (click)="close()" aria-label="Close panel">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  @if (flight(); as flight) {
+    <!-- Aircraft Photo -->
+    @if (photo(); as photoData) {
+      <div class="photo-section">
+        <img [src]="photoData.thumbnail.src" [alt]="'Aircraft ' + flight.icao24" />
+        <p class="photographer">Photo by {{ photoData.photographer }}</p>
+      </div>
+    }
+
+    <!-- Flight Information -->
+    <mat-expansion-panel expanded>
+      <mat-expansion-panel-header>
+        <mat-panel-title>Flight Information</mat-panel-title>
+      </mat-expansion-panel-header>
+      
+      <div class="info-grid">
+        <div class="info-item">
+          <span class="label">Status:</span>
+          <app-flight-status-led [onGround]="flight.onGround" />
+        </div>
+        <div class="info-item">
+          <span class="label">Callsign:</span>
+          <span>{{ flight.callsign || '—' }}</span>
+        </div>
+        <div class="info-item">
+          <span class="label">ICAO24:</span>
+          <span>{{ flight.icao24 }}</span>
+        </div>
+        <div class="info-item">
+          <span class="label">Altitude:</span>
+          <span>{{ flight.altitudeBaro | unit:'m':'ft' }}</span>
+        </div>
+        <!-- More fields... -->
+      </div>
+    </mat-expansion-panel>
+
+    <!-- Aircraft Information -->
+    <mat-expansion-panel>
+      <mat-expansion-panel-header>
+        <mat-panel-title>Aircraft Information</mat-panel-title>
+      </mat-expansion-panel-header>
+      
+      <div class="info-grid">
+        <div class="info-item">
+          <span class="label">Operator:</span>
+          <app-airline-display [operatorIcao]="flight.operatorIcao" />
+        </div>
+        <div class="info-item">
+          <span class="label">Model:</span>
+          <span>{{ flight.model || '—' }}</span>
+        </div>
+        <!-- More fields... -->
+      </div>
+    </mat-expansion-panel>
+  } @else {
+    <p class="no-data">Flight data unavailable</p>
+  }
+</div>
+```
+
+## Display Sections
+
+### 1. Header
+- Flight callsign or ICAO24
+- Close button
+
+### 2. Photo Section (Optional)
+- Aircraft thumbnail image
+- Photographer credit
+- Link to full-size image
+
+### 3. Flight Information
+- Status (flying/on ground)
+- Callsign
+- ICAO24 address
+- Altitude (with unit conversion)
+- Velocity
+- Heading
+- Vertical rate
+- Squawk code
+
+### 4. Aircraft Information
+- Operator/airline (with logo)
+- Aircraft model
+- Type code
+- Registration
+- Owner
+- Origin country
+
+## Usage Example
+
+The component is typically created dynamically by FlightsShellComponent:
+
+```typescript
+private openOverlayPanel(flightId: string, photo: AircraftPhoto | null): void {
+  this.overlayRef = this.overlay.create({
+    positionStrategy: this.overlay.position().global().left('30px').bottom('5%'),
+    width: '310px',
+    height: '80%',
+    hasBackdrop: false,
+    panelClass: 'flight-detail-overlay',
+  });
+
+  const portal = new ComponentPortal(
+    FlightDetailPanelComponent, 
+    this.viewContainerRef
+  );
+  const componentRef = this.overlayRef.attach(portal);
+
+  // Set inputs
+  componentRef.setInput('flightId', flightId);
+  componentRef.setInput('photo', photo);
+
+  // Subscribe to close event
+  this.panelClosedSub?.unsubscribe();
+  this.panelClosedSub = componentRef.instance.closed.subscribe(() => {
+    this.store.clearSelection();
+  });
+}
+```
+
+## Styling
+
+The component uses custom styling for the panel layout:
+
+```scss
+.flight-detail-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: white;
+  overflow-y: auto;
+
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    border-bottom: 1px solid #e0e0e0;
+
+    h2 {
+      margin: 0;
+      font-size: 1.25rem;
+    }
+  }
+
+  .photo-section {
+    padding: 16px;
+    
+    img {
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+    }
+
+    .photographer {
+      margin-top: 8px;
+      font-size: 0.75rem;
+      color: #666;
+    }
+  }
+
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 16px;
+
+    .info-item {
+      display: flex;
+      justify-content: space-between;
+      
+      .label {
+        font-weight: 500;
+        color: #666;
+      }
+    }
+  }
+}
+```
+
+## Unit Conversion
+
+The component uses a custom `UnitPipe` for unit conversions:
+
+```typescript
+{{ flight.altitudeBaro | unit:'m':'ft' }}
+{{ flight.velocity | unit:'m/s':'knots' }}
+```
+
+This automatically converts metric values to imperial units for display.
+
+## Child Components
+
+### AirlineDisplayComponent
+
+Displays airline logo and name:
+
+```html
+<app-airline-display [operatorIcao]="flight.operatorIcao" />
+```
+
+### FlightStatusLedComponent
+
+Shows visual indicator for flight status:
+
+```html
+<app-flight-status-led [onGround]="flight.onGround" />
+```
+
+## Error Handling
+
+### Flight Not Found
+
+If the flight is no longer in the store:
+
+```html
+@else {
+  <p class="no-data">Flight data unavailable</p>
+}
+```
+
+### Missing Photo
+
+The photo section is conditionally rendered:
+
+```html
+@if (photo(); as photoData) {
+  <!-- Photo display -->
+}
+```
+
+### Null Field Values
+
+All nullable fields use fallback display:
+
+```html
+{{ flight.callsign || '—' }}
+{{ flight.model || '—' }}
+```
+
+## Accessibility
+
+### ARIA Labels
+
+```html
+<button 
+  mat-icon-button 
+  (click)="close()" 
+  aria-label="Close flight details panel"
+>
+  <mat-icon>close</mat-icon>
+</button>
+```
+
+### Keyboard Navigation
+
+- **Escape**: Should close the panel (implement in parent)
+- **Tab**: Navigate through focusable elements
+- **Enter/Space**: Activate buttons and expansion panels
+
+## Mobile Alternative
+
+On mobile viewports, FlightsShellComponent uses `FlightDetailBottomSheetComponent` instead of this panel component. Both components share similar inputs and display logic.
+
+## Performance Considerations
+
+### Computed Signal
+
+The flight lookup is efficient because:
+- Only recomputes when dependencies change
+- Uses built-in `find()` method (O(n) but typically small n)
+- No unnecessary component re-renders
+
+### OnPush (Optional)
+
+For better performance with frequent updates:
+
+```typescript
+@Component({
+  // ...
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+```
+
+## Related Components
+
+- [FlightsShellComponent](/components/flights-shell) - Parent orchestration component
+- [FlightDetailBottomSheetComponent] - Mobile alternative
+- [AirlineDisplayComponent] - Airline display child component
+- [FlightStatusLedComponent] - Status indicator child component
+
+## Services Used
+
+- **FlightsStoreService** - Flight data store
+
+## Material Dependencies
+
+- `MatButtonModule` - Close button
+- `MatIconModule` - Icons
+- `MatExpansionModule` - Collapsible sections
+- `MatTooltipModule` - Tooltips
+- `MatGridListModule` - Grid layout

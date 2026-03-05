@@ -1,0 +1,207 @@
+---
+title: 'FlightsApiService'
+description: 'HTTP API service for fetching live flight data and aircraft photos'
+icon: 'cloud'
+---
+
+## Overview
+
+`FlightsApiService` is a core Angular service that handles all HTTP communication with the Air Tracker backend API. It provides methods to fetch live flight data and aircraft photos using Angular's `HttpClient`.
+
+This service is provided at the root level and automatically injected into other services like `FlightsStoreService`.
+
+## Location
+
+```
+src/app/features/flights/services/flights-api.service.ts
+```
+
+## Methods
+
+### getLiveFlights()
+
+Fetches current live flight data from the backend API.
+
+<ParamField path="Returns" type="Observable<FlightResponseDto>">
+  Returns an Observable that emits flight data including:
+  - `time`: Unix timestamp of the response
+  - `flights`: Array of flight objects with position, velocity, and metadata
+  - `cacheAgeMs`: Age of cached data in milliseconds
+  - `pollingIntervalMs`: Recommended polling interval
+  - `nextUpdateInMs`: Time until next data update
+</ParamField>
+
+<ResponseField name="FlightResponseDto" type="object">
+  <ResponseField name="time" type="number" required>
+    Unix timestamp of the response
+  </ResponseField>
+  <ResponseField name="flights" type="FlightDto[]" required>
+    Array of flight objects containing position, velocity, and aircraft metadata
+  </ResponseField>
+  <ResponseField name="cacheAgeMs" type="number">
+    Age of the cached data in milliseconds
+  </ResponseField>
+  <ResponseField name="pollingIntervalMs" type="number">
+    Recommended polling interval in milliseconds
+  </ResponseField>
+  <ResponseField name="nextUpdateInMs" type="number">
+    Time until next data update in milliseconds
+  </ResponseField>
+</ResponseField>
+
+**API Endpoint:** `GET /flights/live`
+
+**Usage Example:**
+
+```typescript
+import { inject, Injectable } from '@angular/core';
+import { FlightsApiService } from './flights-api.service';
+import { catchError, of } from 'rxjs';
+
+@Injectable()
+export class MyService {
+  private readonly api = inject(FlightsApiService);
+
+  loadFlights(): void {
+    this.api.getLiveFlights()
+      .pipe(
+        catchError((err) => {
+          console.error('Failed to fetch flights:', err);
+          return of(null);
+        })
+      )
+      .subscribe(response => {
+        if (response) {
+          console.log(`Received ${response.flights.length} flights`);
+          console.log(`Cache age: ${response.cacheAgeMs}ms`);
+        }
+      });
+  }
+}
+```
+
+### getPhotosByIcao24()
+
+Fetches aircraft photos for a specific aircraft identified by its ICAO 24-bit address.
+
+<ParamField path="icao24" type="string" required>
+  The ICAO 24-bit address (unique aircraft identifier) to fetch photos for
+</ParamField>
+
+<ParamField path="Returns" type="Observable<AircraftPhotoDto>">
+  Returns an Observable that emits aircraft photo data including:
+  - `thumbnailUrl`: URL to thumbnail image
+  - `largeUrl`: URL to full-size image
+  - `link`: Link to photo source page
+  - `photographer`: Name of the photographer
+  - `attribution`: Attribution text
+</ParamField>
+
+<ResponseField name="AircraftPhotoDto" type="object">
+  <ResponseField name="thumbnailUrl" type="string" required>
+    URL to the thumbnail image
+  </ResponseField>
+  <ResponseField name="largeUrl" type="string" required>
+    URL to the full-size image
+  </ResponseField>
+  <ResponseField name="link" type="string" required>
+    Link to the photo source page
+  </ResponseField>
+  <ResponseField name="photographer" type="string" required>
+    Name of the photographer
+  </ResponseField>
+  <ResponseField name="attribution" type="string" required>
+    Attribution text for the photo
+  </ResponseField>
+</ResponseField>
+
+**API Endpoint:** `GET /aircraft-photos/{icao24}`
+
+**Usage Example:**
+
+```typescript
+import { inject, Injectable } from '@angular/core';
+import { FlightsApiService } from './flights-api.service';
+import { take, catchError, of } from 'rxjs';
+
+@Injectable()
+export class FlightDetailService {
+  private readonly api = inject(FlightsApiService);
+
+  loadAircraftPhoto(icao24: string): void {
+    this.api.getPhotosByIcao24(icao24)
+      .pipe(
+        take(1),
+        catchError(() => of(null))
+      )
+      .subscribe(photoDto => {
+        if (photoDto) {
+          console.log('Photo URL:', photoDto.largeUrl);
+          console.log('Photographer:', photoDto.photographer);
+        } else {
+          console.log('No photo available for this aircraft');
+        }
+      });
+  }
+}
+```
+
+## Real-World Usage
+
+From `flights-shell.component.ts:109-131`, here's how the service is used in production:
+
+```typescript
+import { Component, inject, OnInit } from '@angular/core';
+import { FlightsApiService } from '../services/flights-api.service';
+import { FlightsStoreService } from '../services/flights-store.service';
+import { catchError, of, take } from 'rxjs';
+
+@Component({
+  selector: 'app-flights-shell',
+  // ...
+})
+export class FlightsShellComponent implements OnInit {
+  private readonly api = inject(FlightsApiService);
+  protected readonly store = inject(FlightsStoreService);
+
+  ngOnInit(): void {
+    // Start polling for live flight data
+    this.store.startSmartPolling();
+  }
+
+  private openFlightDetailUI(icao24: string): void {
+    // Fetch aircraft photo when user selects a flight
+    this.api
+      .getPhotosByIcao24(icao24)
+      .pipe(
+        take(1),
+        catchError(() => of(null))
+      )
+      .subscribe(photoDto => {
+        let photo: AircraftPhoto | null = null;
+        
+        if (photoDto) {
+          try {
+            photo = fromAircraftPhotoDto(photoDto);
+          } catch (e) {
+            console.warn('Invalid photo:', e);
+          }
+        }
+        
+        // Display photo in UI...
+      });
+  }
+}
+```
+
+## Dependencies
+
+The service automatically injects:
+
+- `HttpClient` - For making HTTP requests
+- `ApiConfigService` - For retrieving the base API URL
+
+## See Also
+
+- [FlightsStoreService](/api/flights-store-service) - State management that uses this API service
+- [Flight Data Model](/api/flight-model) - Structure of flight data returned by the API

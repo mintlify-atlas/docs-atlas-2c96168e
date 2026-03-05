@@ -1,0 +1,240 @@
+---
+title: 'Flight Model'
+description: 'Core Flight model interface representing aircraft state in the application'
+---
+
+## Overview
+
+The `Flight` interface represents the normalized flight data structure used throughout the Air Tracker application. It contains comprehensive information about an aircraft's position, velocity, identification, and metadata.
+
+## Interface Definition
+
+```typescript
+export interface Flight {
+  icao24: string;
+  callsign: string | null;
+  originCountry: string;
+  timePosition?: number | null;
+  lastContact?: number;
+  latitude: number | null;
+  longitude: number | null;
+  altitudeBaro: number | null;
+  altitudeGeo: number | null;
+  heading: number | null;
+  velocity: number | null;
+  onGround: boolean;
+  category: string | null;
+  model: string | null;
+  operator: string | null;
+  operatorIcao: string | null;
+  owner: string | null;
+  typecode: string | null;
+  registration: string | null;
+  verticalRate: number | null;
+  squawk: string | null;
+  spi: boolean;
+}
+```
+
+## Properties
+
+<ResponseField name="icao24" type="string" required>
+  Unique ICAO 24-bit address of the aircraft in hex string representation (e.g., "a1b2c3")
+</ResponseField>
+
+<ResponseField name="callsign" type="string | null">
+  Aircraft callsign (flight number). May be null if not available
+</ResponseField>
+
+<ResponseField name="originCountry" type="string" required>
+  Country where the aircraft is registered
+</ResponseField>
+
+<ResponseField name="timePosition" type="number | null">
+  Unix timestamp (seconds) of the last position update. Optional field
+</ResponseField>
+
+<ResponseField name="lastContact" type="number">
+  Unix timestamp (seconds) of the last data received from the aircraft
+</ResponseField>
+
+<ResponseField name="latitude" type="number | null">
+  WGS-84 latitude in decimal degrees. Null if position is not available
+</ResponseField>
+
+<ResponseField name="longitude" type="number | null">
+  WGS-84 longitude in decimal degrees. Null if position is not available
+</ResponseField>
+
+<ResponseField name="altitudeBaro" type="number | null">
+  Barometric altitude in meters. Null if not available
+</ResponseField>
+
+<ResponseField name="altitudeGeo" type="number | null">
+  Geometric altitude in meters. Null if not available
+</ResponseField>
+
+<ResponseField name="heading" type="number | null">
+  True track (heading) in decimal degrees (0-360). Null if not available
+</ResponseField>
+
+<ResponseField name="velocity" type="number | null">
+  Ground speed in m/s. Null if not available
+</ResponseField>
+
+<ResponseField name="onGround" type="boolean" required>
+  Indicates whether the aircraft is on the ground (true) or in the air (false)
+</ResponseField>
+
+<ResponseField name="category" type="string | null">
+  Aircraft category (e.g., "A1" for light aircraft)
+</ResponseField>
+
+<ResponseField name="model" type="string | null">
+  Aircraft model name (e.g., "Boeing 737-800")
+</ResponseField>
+
+<ResponseField name="operator" type="string | null">
+  Airline or operator name
+</ResponseField>
+
+<ResponseField name="operatorIcao" type="string | null">
+  ICAO code of the operator/airline
+</ResponseField>
+
+<ResponseField name="owner" type="string | null">
+  Aircraft owner name
+</ResponseField>
+
+<ResponseField name="typecode" type="string | null">
+  ICAO aircraft type designator (e.g., "B738" for Boeing 737-800)
+</ResponseField>
+
+<ResponseField name="registration" type="string | null">
+  Aircraft registration number (tail number)
+</ResponseField>
+
+<ResponseField name="verticalRate" type="number | null">
+  Vertical rate in m/s. Positive values indicate climb, negative indicate descent
+</ResponseField>
+
+<ResponseField name="squawk" type="string | null">
+  Transponder squawk code (4-digit code)
+</ResponseField>
+
+<ResponseField name="spi" type="boolean" required>
+  Special Position Identification flag. True when the pilot has activated the ident button
+</ResponseField>
+
+## Mapping Function
+
+The `mapFlightDtoToFlight` function converts a `FlightDto` from the backend response into the `Flight` model used in the application.
+
+```typescript
+export const mapFlightDtoToFlight = (dto: FlightDto): Flight => ({
+  icao24: dto.icao24,
+  callsign: dto.callsign,
+  originCountry: dto.originCountry,
+  timePosition: dto.timePosition,
+  lastContact: dto.lastContact,
+  latitude: dto.latitude,
+  longitude: dto.longitude,
+  altitudeBaro: dto.altitudeBaro,
+  altitudeGeo: dto.altitudeGeo,
+  heading: dto.heading,
+  onGround: dto.onGround,
+  velocity: dto.velocity,
+  category: dto.category,
+  model: dto.model,
+  operator: dto.operator,
+  operatorIcao: dto.operatorIcao,
+  owner: dto.owner,
+  typecode: dto.typecode,
+  registration: dto.registration,
+  verticalRate: dto.verticalRate,
+  squawk: dto.squawk,
+  spi: dto.spi,
+});
+```
+
+## Usage Examples
+
+### Converting API Response to Flight Model
+
+```typescript
+import { mapFlightDtoToFlight } from './models/flight.model';
+import type { FlightDto } from './models/flight.dto';
+
+// Received from API
+const flightDto: FlightDto = {
+  icao24: "a1b2c3",
+  callsign: "UAL123",
+  originCountry: "United States",
+  timePosition: 1678901234,
+  lastContact: 1678901235,
+  latitude: 37.7749,
+  longitude: -122.4194,
+  altitudeBaro: 10000,
+  altitudeGeo: 10050,
+  heading: 270,
+  velocity: 250,
+  onGround: false,
+  category: "A3",
+  model: "Boeing 737-900",
+  operator: "United Airlines",
+  operatorIcao: "UAL",
+  owner: "United Airlines Inc",
+  typecode: "B739",
+  registration: "N12345",
+  verticalRate: 5.2,
+  squawk: "1200",
+  spi: false
+};
+
+// Convert to Flight model
+const flight = mapFlightDtoToFlight(flightDto);
+```
+
+### Working with Flight Data
+
+```typescript
+import type { Flight } from './models/flight.model';
+
+function displayFlightInfo(flight: Flight): void {
+  console.log(`Flight ${flight.callsign || 'Unknown'}`);
+  console.log(`ICAO24: ${flight.icao24}`);
+  console.log(`Status: ${flight.onGround ? 'On Ground' : 'In Flight'}`);
+  
+  if (flight.latitude && flight.longitude) {
+    console.log(`Position: ${flight.latitude}, ${flight.longitude}`);
+  }
+  
+  if (flight.altitudeBaro) {
+    console.log(`Altitude: ${flight.altitudeBaro}m`);
+  }
+  
+  if (flight.velocity) {
+    console.log(`Speed: ${flight.velocity}m/s`);
+  }
+}
+```
+
+### Filtering Flights
+
+```typescript
+import type { Flight } from './models/flight.model';
+
+function getAirborneFlights(flights: Flight[]): Flight[] {
+  return flights.filter(flight => !flight.onGround);
+}
+
+function getFlightsByOperator(flights: Flight[], operatorName: string): Flight[] {
+  return flights.filter(flight => 
+    flight.operator?.toLowerCase().includes(operatorName.toLowerCase())
+  );
+}
+```
+
+## Source Location
+
+`~/workspace/source/src/app/features/flights/models/flight.model.ts`

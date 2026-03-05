@@ -1,0 +1,577 @@
+---
+title: Flight Detail Views
+description: Comprehensive flight information with responsive layouts for desktop panels and mobile bottom sheets
+icon: plane-circle-check
+---
+
+## Overview
+
+Air Tracker displays detailed flight information in two responsive formats:
+
+<CardGroup cols={2}>
+  <Card title="Desktop Panel" icon="sidebar">
+    Fixed side panel with scrollable content
+  </Card>
+  <Card title="Mobile Bottom Sheet" icon="mobile-screen">
+    Draggable sheet with responsive grid layouts
+  </Card>
+</CardGroup>
+
+## Desktop Panel Component
+
+### Component Architecture
+
+The `FlightDetailPanelComponent` displays flight details in a fixed right-side panel:
+
+```typescript
+@Component({
+  selector: 'app-flight-panel',
+  imports: [
+    AirlineDisplayComponent,
+    MatButtonModule,
+    MatIconModule,
+    CommonModule,
+    MatTooltipModule,
+    MatExpansionModule,
+    MatGridListModule,
+    UnitPipe,
+    FlightStatusLedComponent,
+    LogoComponent
+  ],
+  templateUrl: './flight-detail-panel.component.html',
+  styleUrl: './flight-detail-panel.component.scss',
+})
+export class FlightDetailPanelComponent {
+  flightId = input.required<string>();
+  photo = input<AircraftPhoto | null>();
+  closed = output<void>();
+  
+  readonly store = inject(FlightsStoreService);
+  
+  // Computed signal to find the flight by ID
+  readonly flight = computed<Flight | null>(() =>
+    this.store.flights().find(f => f.icao24 === this.flightId()) ?? null
+  );
+  
+  close() {
+    this.closed.emit();
+  }
+}
+```
+
+<Info>
+The component uses a computed signal to reactively find the flight data whenever the flights array or flightId changes.
+</Info>
+
+### Panel Sections
+
+The desktop panel is organized into distinct information sections:
+
+<Tabs>
+  <Tab title="Header">
+    ```html
+    <header class="flight-header">
+      <div class="flight-header-top">
+        <div class="flight-info">
+          <span class="callsign" matTooltip="Call sign">
+            {{ flight.callsign || 'N/A' }}
+          </span>
+          <span class="type-code" matTooltip="Aircraft IATA/ICAO type code">
+            {{ flight.typecode || 'N/A' }}
+          </span>
+          <app-flight-status-led [onGround]="flight.onGround"></app-flight-status-led>
+        </div>
+        <div class="close-actions">
+          <button mat-icon-button class="close-button" (click)="close()">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+      </div>
+      <div class="flight-icao24">
+        <span matTooltip="Icao24">{{ flight.icao24 | uppercase }}</span>
+      </div>
+    </header>
+    ```
+  </Tab>
+  <Tab title="Photo Section">
+    ```html
+    <div class="photo-section">
+      <img 
+        [src]="photo()?.largeUrl || '/assets/images/no_image.jpg'" 
+        [alt]="photo()?.attribution || 'Flight image'"
+        class="full-width-photo" 
+        loading="lazy"
+      >
+      @if(photo()){
+        <div class="photo-credit">
+          <span class="photographer">© {{ photo()?.photographer }}</span>
+          <a mat-icon-button 
+             class="photo-link" 
+             [href]="photo()?.link" 
+             target="_blank" 
+             rel="noopener noreferrer">
+            <mat-icon>open_in_new</mat-icon>
+          </a>
+        </div>
+      } @else {
+        <div class="no-photo-placeholder">
+          <span>No photo available</span>
+        </div>
+      }
+    </div>
+    ```
+  </Tab>
+  <Tab title="Operator Info">
+    ```html
+    @if(flight.operator){
+      <div class="info-card-header">
+        <h3>Operator info</h3>
+      </div>
+      <div class="operator-info-container">
+        <mat-grid-list cols="2" rowHeight="3:1" gutterSize="3px">
+          <mat-grid-tile colspan="1" rowspan="2">
+            <app-airline-display 
+              [operatorIcao]="flight.operatorIcao" 
+              [operator]="flight.operator">
+            </app-airline-display>
+          </mat-grid-tile>
+          <mat-grid-tile colspan="1">
+            <div class="grid-item">
+              <span class="label">Operator</span>
+              <span class="value">{{ flight.operator}}</span>
+            </div>
+          </mat-grid-tile>
+          <mat-grid-tile colspan="1">
+            <div class="grid-item">
+              <span class="label">Call sign</span>
+              <span class="value">{{ flight.callsign || 'N/A'}}</span>
+            </div>
+          </mat-grid-tile>
+        </mat-grid-list>
+      </div>
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Mobile Bottom Sheet Component
+
+### Component Structure
+
+The `FlightDetailBottomSheetComponent` provides a mobile-optimized view:
+
+```typescript
+@Component({
+  selector: 'app-flight-detail-bottom-sheet',
+  imports: [
+    CommonModule, 
+    MatIcon, 
+    FlightStatusLedComponent, 
+    MatButtonModule, 
+    MatIconModule, 
+    MatGridList, 
+    MatGridTile, 
+    AirlineDisplayComponent, 
+    UnitPipe
+  ],
+  templateUrl: './flight-detail-bottom-sheet.component.html',
+  styleUrl: './flight-detail-bottom-sheet.component.scss',
+})
+export class FlightDetailBottomSheetComponent {
+  private readonly ref = inject(MatBottomSheetRef<FlightDetailBottomSheetComponent>);
+  protected readonly store = inject(FlightsStoreService);
+  protected readonly viewport = inject(ViewportService);
+  protected readonly data = inject(MAT_BOTTOM_SHEET_DATA) as FlightDetailBottomSheetData;
+  
+  readonly flight = computed<Flight | null>(() =>
+    this.store.flights().find(f => f.icao24 === this.data.flightId) ?? null
+  );
+  
+  // Responsive grid configurations
+  readonly opertorInfoGridRowHeight = computed(() => {
+    if (this.viewport.isTablet()) return '5:1';
+    if (this.viewport.isMobile()) return '3:1';
+    return '5:1';
+  });
+  
+  readonly aircraftInfoGridRowHeight = computed(() => { 
+    if (this.viewport.isTablet()) return '5:3';
+    if (this.viewport.isMobile()) return '10:11';
+    return '5:1'; 
+  });
+  
+  readonly flightInfoGridRowHeight = computed(() => { 
+    if (this.viewport.isTablet()) return '6:4';
+    if (this.viewport.isMobile()) return '11:12';
+    return '5:1'; 
+  });
+  
+  close(): void {
+    this.ref.dismiss('user' satisfies SheetCloseReason);
+  }
+}
+```
+
+<Note>
+The bottom sheet uses responsive computed signals to adjust grid layouts based on device type (mobile, tablet, desktop).
+</Note>
+
+## Aircraft Photos
+
+Both views display aircraft photos fetched from the backend:
+
+```typescript
+// From FlightsApiService
+getPhotosByIcao24(icao24: string): Observable<AircraftPhotoDto> {
+  return this.http.get<AircraftPhotoDto>(
+    `${this.baseUrl}/aircraft-photos/${icao24}`
+  );
+}
+```
+
+### Photo Model
+
+```typescript
+export interface AircraftPhoto {
+  largeUrl: string;        // Full-size image URL
+  photographer: string;    // Photo credit
+  link: string;            // External source link
+  attribution: string;     // Alt text / description
+}
+```
+
+<Tip>
+Photos use `loading="lazy"` to improve initial page load performance and only load when scrolled into view.
+</Tip>
+
+## Flight Information Displayed
+
+The detail views show comprehensive flight data organized into categories:
+
+### 1. Operator Information
+
+<CardGroup cols={3}>
+  <Card title="Airline Logo" icon="building">
+    Visual airline identification
+  </Card>
+  <Card title="Operator Name" icon="tag">
+    Full airline/operator name
+  </Card>
+  <Card title="Call Sign" icon="radio">
+    Radio callsign identifier
+  </Card>
+</CardGroup>
+
+```html
+<mat-grid-list cols="2" rowHeight="3:1" gutterSize="3px">
+  <mat-grid-tile colspan="1" rowspan="2">
+    <app-airline-display 
+      [operatorIcao]="flight.operatorIcao" 
+      [operator]="flight.operator">
+    </app-airline-display>
+  </mat-grid-tile>
+  <mat-grid-tile colspan="1">
+    <div class="grid-item">
+      <span class="label">Operator</span>
+      <span class="value">{{ flight.operator}}</span>
+    </div>
+  </mat-grid-tile>
+  <mat-grid-tile colspan="1">
+    <div class="grid-item">
+      <span class="label">Call sign</span>
+      <span class="value">{{ flight.callsign || 'N/A'}}</span>
+    </div>
+  </mat-grid-tile>
+</mat-grid-list>
+```
+
+### 2. Aircraft Details
+
+```html
+<mat-grid-list cols="6" rowHeight="9:11" gutterSize="3px">
+  <mat-grid-tile colspan="1" rowspan="3">
+    <div class="grid-icon">
+      <mat-icon class="aircraft-icon">airplanemode_active</mat-icon>
+    </div>
+  </mat-grid-tile>
+  
+  <mat-grid-tile colspan="5">
+    <div class="grid-item">
+      <span class="label">
+        Aircraft type @if(flight.typecode) {
+          ({{ flight.typecode }})
+        }
+      </span>
+      <span class="value" [matTooltip]="flight.model">
+        {{ flight.model || 'N/A'}}
+      </span>
+    </div>
+  </mat-grid-tile>
+  
+  <mat-grid-tile colspan="2">
+    <div class="grid-item">
+      <span class="label">Registration</span>
+      <span class="value" [matTooltip]="flight.registration">
+        {{ flight.registration || 'N/A' }}
+      </span>
+    </div>
+  </mat-grid-tile>
+  
+  <mat-grid-tile colspan="3">
+    <div class="grid-item">
+      <span class="label">Category</span>
+      <span class="value" [matTooltip]="flight.category">
+        {{ flight.category || 'N/A' }}
+      </span>
+    </div>
+  </mat-grid-tile>
+  
+  <mat-grid-tile colspan="2">
+    <div class="grid-item">
+      <span class="label">Owner</span>
+      <span class="value" [matTooltip]="flight.owner">
+        {{ flight.owner || 'N/A'}}
+      </span>
+    </div>
+  </mat-grid-tile>
+  
+  <mat-grid-tile colspan="3">
+    <div class="grid-item">
+      <span class="label">Country of Reg</span>
+      <span class="value" [matTooltip]="flight.originCountry">
+        {{ flight.originCountry || 'N/A' }}
+      </span>
+    </div>
+  </mat-grid-tile>
+</mat-grid-list>
+```
+
+**Displays:**
+- Aircraft type and model
+- Registration number
+- Aircraft category
+- Owner information
+- Country of registration
+- ICAO type code
+
+### 3. Position & Navigation
+
+```html
+<mat-grid-list cols="6" rowHeight="9:12" gutterSize="3px">
+  <mat-grid-tile colspan="1" rowspan="3">
+    <div class="grid-icon">
+      <mat-icon class="flight-icon">explore</mat-icon>
+    </div>
+  </mat-grid-tile>
+  
+  <mat-grid-tile colspan="5">
+    <div class="grid-item">
+      <span class="label">Position (Lat / Lon)</span>
+      <span class="value">
+        {{ flight.latitude}}° / {{ flight.longitude }}°
+      </span>
+    </div>
+  </mat-grid-tile>
+  
+  <mat-grid-tile colspan="2">
+    <div class="grid-item">
+      <span class="label">Altitude Geo.</span>
+      <span class="value">{{ flight.altitudeGeo | unit:'m' }}</span>
+    </div>
+  </mat-grid-tile>
+  
+  <mat-grid-tile colspan="3">
+    <div class="grid-item">
+      <span class="label">Altitude Bar.</span>
+      <span class="value">{{ flight.altitudeBaro | unit:'m' }}</span>
+    </div>
+  </mat-grid-tile>
+  
+  <mat-grid-tile colspan="5">
+    <div class="grid-item">
+      <span class="label">Course</span>
+      <span class="value">{{ flight.heading | unit:'°'}}</span>
+    </div>
+  </mat-grid-tile>
+</mat-grid-list>
+```
+
+**Displays:**
+- GPS coordinates (latitude/longitude)
+- Geometric altitude
+- Barometric altitude
+- Heading/course
+
+<Info>
+The `unit` pipe automatically formats values with appropriate units (meters, degrees, etc.) and handles null values gracefully.
+</Info>
+
+### 4. Performance Data
+
+```html
+<mat-grid-list class="performance-grid" cols="6" rowHeight="9:11" gutterSize="3px">
+  <mat-grid-tile colspan="1" rowspan="3">
+    <div class="grid-icon">
+      <mat-icon class="performance-icon">square_foot</mat-icon>
+    </div>
+  </mat-grid-tile>
+  
+  <mat-grid-tile colspan="5">
+    <div class="grid-item">
+      <span class="label">Speed</span>
+      <span class="value">{{ flight.velocity | unit:'m/s'}}</span>
+    </div>
+  </mat-grid-tile>
+  
+  <mat-grid-tile colspan="5">
+    <div class="grid-item">
+      <span class="label">Vertical rate</span>
+      <div class="vertical-rate-container">
+        <span class="value">{{ flight.verticalRate | unit:'m/s'}}</span>
+        @if(flight.verticalRate){
+          <mat-icon class="vertical-rate-icon"
+            [ngClass]="{
+              'climbing': flight.verticalRate > 0, 
+              'descending': flight.verticalRate < 0
+            }">
+            {{ flight.verticalRate > 0 ? 'arrow_drop_up' : 'arrow_drop_down' }}
+          </mat-icon>
+        }
+      </div>
+    </div>
+  </mat-grid-tile>
+  
+  <mat-grid-tile colspan="2">
+    <div class="grid-item">
+      <span class="label">Squawk</span>
+      <span class="value">{{ flight.squawk ?? 'N/A'}}</span>
+    </div>
+  </mat-grid-tile>
+  
+  <mat-grid-tile colspan="3">
+    <div class="grid-item">
+      <span class="label">Spi</span>
+      <span class="value">{{ flight.spi || 'N/A' }}</span>
+    </div>
+  </mat-grid-tile>
+</mat-grid-list>
+```
+
+**Displays:**
+- Ground speed
+- Vertical rate with visual indicator (↑ climbing / ↓ descending)
+- Squawk code (transponder)
+- SPI (Special Position Identification)
+
+## Selection & Deselection
+
+### Selection Flow
+
+```typescript
+// In MapMarkerService - marker click handler
+marker.on('click', () => {
+  const currentSelected = this.store.selectedFlightId();
+  if (currentSelected === flight.icao24) {
+    this.store.clearSelection();  // Toggle off if already selected
+  } else {
+    this.store.setSelectedFlightId(flight.icao24);  // Select new flight
+  }
+});
+```
+
+<Tabs>
+  <Tab title="Select Flight">
+    1. User clicks aircraft marker on map
+    2. Store updates `selectedFlightId` signal
+    3. Map updates marker icon to highlighted state
+    4. Detail panel/sheet opens with flight data
+    5. Aircraft photo is fetched asynchronously
+  </Tab>
+  <Tab title="Deselect Flight">
+    1. User clicks selected marker again OR
+    2. User clicks close button in panel/sheet
+    3. Store sets `selectedFlightId` to `null`
+    4. Map resets marker icon to normal state
+    5. Detail panel/sheet closes
+  </Tab>
+</Tabs>
+
+### Store Methods
+
+```typescript
+// From FlightsStoreService
+setSelectedFlightId(id: string | null): void {
+  this._selectedFlightId.set(id);
+}
+
+clearSelection(): void {
+  this._selectedFlightId.set(null);
+}
+```
+
+## Responsive Behavior
+
+### Desktop (>= 1024px)
+
+- **Fixed side panel** on the right
+- **Full information** with all sections expanded
+- **Large aircraft photo** at top of panel
+- **Scrollable content** within fixed panel
+
+### Tablet (768px - 1023px)
+
+- **Bottom sheet** slides up from bottom
+- **Adjusted grid ratios** for better fit
+- **Medium-sized photo**
+- **Draggable sheet** to expand/collapse
+
+### Mobile (< 768px)
+
+- **Compact bottom sheet** optimized for small screens
+- **Tighter grid layouts** (`10:11`, `11:12` ratios)
+- **Essential information** prioritized
+- **Swipe to dismiss** gesture
+
+<Note>
+The `ViewportService` provides reactive signals for device type detection, enabling automatic layout adjustments.
+</Note>
+
+## Usage Example
+
+```typescript
+import { Component, inject } from '@angular/core';
+import { FlightsStoreService } from './services/flights-store.service';
+import { FlightDetailPanelComponent } from './flight-detail-panel/flight-detail-panel.component';
+import { MatBottomSheet } from '@angular/material/bottom-sheet';
+import { FlightDetailBottomSheetComponent } from './flight-detail-bottom-sheet/flight-detail-bottom-sheet.component';
+import { ViewportService } from './services/viewport.service';
+
+@Component({
+  selector: 'app-flights-shell',
+  template: `
+    <div class="flights-container">
+      <app-flights-map [flights]="store.filteredFlights()"></app-flights-map>
+      
+      @if (store.selectedFlightId() && viewport.isDesktop()) {
+        <app-flight-panel 
+          [flightId]="store.selectedFlightId()!"
+          [photo]="currentPhoto"
+          (closed)="store.clearSelection()">
+        </app-flight-panel>
+      }
+    </div>
+  `
+})
+export class FlightsShellComponent {
+  store = inject(FlightsStoreService);
+  viewport = inject(ViewportService);
+  bottomSheet = inject(MatBottomSheet);
+  
+  // Open bottom sheet on mobile
+  openBottomSheet(flightId: string) {
+    this.bottomSheet.open(FlightDetailBottomSheetComponent, {
+      data: { flightId }
+    });
+  }
+}
+```

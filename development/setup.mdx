@@ -1,0 +1,194 @@
+---
+title: Development Environment Setup
+description: Set up your development environment for Air Tracker
+---
+
+This guide will help you set up your local development environment for Air Tracker.
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+- **Node.js**: Version 18.x or later
+- **npm**: Version 9.x or later (comes with Node.js)
+- **Git**: For version control
+
+<Steps>
+
+### Install Node.js and npm
+
+Download and install Node.js from [nodejs.org](https://nodejs.org/). We recommend using the LTS (Long Term Support) version.
+
+Verify your installation:
+
+<CodeGroup>
+```bash Terminal
+node --version
+npm --version
+```
+</CodeGroup>
+
+### Install Angular CLI
+
+Air Tracker uses Angular 20.2.x. Install the Angular CLI globally:
+
+<CodeGroup>
+```bash Terminal
+npm install -g @angular/cli@20.2.2
+```
+</CodeGroup>
+
+Verify the installation:
+
+<CodeGroup>
+```bash Terminal
+ng version
+```
+</CodeGroup>
+
+### Clone the Repository
+
+Clone the Air Tracker frontend repository:
+
+<CodeGroup>
+```bash Terminal
+git clone <repository-url>
+cd air-tracker-frontend
+```
+</CodeGroup>
+
+### Install Project Dependencies
+
+Install all required npm packages:
+
+<CodeGroup>
+```bash Terminal
+npm install
+```
+</CodeGroup>
+
+This will install:
+- Angular 20.2.x and Angular Material
+- Leaflet for map functionality
+- RxJS for reactive programming
+- Development tools (ESLint, Jasmine, Karma)
+
+</Steps>
+
+## IDE Setup
+
+### Recommended IDE: Visual Studio Code
+
+We recommend using [Visual Studio Code](https://code.visualstudio.com/) for development.
+
+#### Required Extensions
+
+Install the following VSCode extension for the best development experience:
+
+- **Angular Language Service** (`angular.ng-template`) - Provides intellisense, code completion, and diagnostics for Angular templates
+
+You can install it from the VSCode Extensions marketplace or run:
+
+<CodeGroup>
+```bash Terminal
+code --install-extension angular.ng-template
+```
+</CodeGroup>
+
+#### Recommended Extensions
+
+These extensions are highly recommended:
+
+- **ESLint** (`dbaeumer.vscode-eslint`) - JavaScript/TypeScript linting
+- **Prettier** (`esbenp.prettier-vscode`) - Code formatter
+- **Angular Snippets** - Code snippets for Angular
+- **GitLens** - Enhanced Git capabilities
+
+### Alternative IDEs
+
+You can also use:
+- **WebStorm** by JetBrains (has built-in Angular support)
+- **Sublime Text** with appropriate plugins
+- **Atom** with Angular packages
+
+## Project Structure Overview
+
+After setup, your project structure will look like this:
+
+```
+air-tracker-frontend/
+├── src/
+│   ├── app/
+│   │   ├── core/              # Core services (viewport, api-config)
+│   │   ├── features/          # Feature modules (flights)
+│   │   └── shared/            # Shared components and utilities
+│   ├── environments/          # Environment configurations
+│   └── styles.scss           # Global styles
+├── public/                    # Static assets
+├── angular.json              # Angular workspace configuration
+├── package.json              # npm dependencies and scripts
+├── tsconfig.json             # TypeScript configuration
+└── eslint.config.js          # ESLint configuration
+```
+
+## Key Dependencies
+
+### Production Dependencies
+
+- **@angular/core** (^20.2.0) - Angular framework
+- **@angular/material** (^20.2.14) - Material Design components
+- **@angular/cdk** (^20.2.14) - Component Dev Kit
+- **leaflet** (^1.9.4) - Interactive maps
+- **rxjs** (~7.8.0) - Reactive extensions
+
+### Development Dependencies
+
+- **@angular/cli** (^20.2.2) - Angular command line tools
+- **typescript** (~5.9.2) - TypeScript compiler
+- **angular-eslint** (21.0.1) - ESLint for Angular
+- **jasmine-core** (~5.9.0) - Testing framework
+- **karma** (~6.4.0) - Test runner
+
+## Verify Your Setup
+
+Run the development server to verify everything is working:
+
+<CodeGroup>
+```bash Terminal
+npm start
+```
+</CodeGroup>
+
+Open your browser to `http://localhost:4200/`. You should see the Air Tracker application running.
+
+## Troubleshooting
+
+### Port Already in Use
+
+If port 4200 is already in use, specify a different port:
+
+<CodeGroup>
+```bash Terminal
+ng serve --port 4201
+```
+</CodeGroup>
+
+### Node Version Issues
+
+If you encounter Node.js version issues, consider using [nvm](https://github.com/nvm-sh/nvm) (Node Version Manager) to manage multiple Node.js versions.
+
+### Dependency Installation Failures
+
+If `npm install` fails:
+
+1. Clear npm cache: `npm cache clean --force`
+2. Delete `node_modules` and `package-lock.json`
+3. Run `npm install` again
+
+## Next Steps
+
+Now that your environment is set up:
+
+- Learn how to [run the project locally](/development/running-locally)
+- Explore the [testing guide](/development/testing)
+- Review [code style guidelines](/development/code-style)

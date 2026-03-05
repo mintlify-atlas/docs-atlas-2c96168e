@@ -1,0 +1,429 @@
+---
+title: 'Architecture Overview'
+description: 'Comprehensive overview of Air Tracker application architecture'
+---
+
+# Architecture Overview
+
+Air Tracker is a real-time aircraft tracking application built with Angular 20, leveraging modern standalone components, signal-based reactivity, and a clean feature-based architecture.
+
+## Technology Stack
+
+### Core Framework
+- **Angular 20.2.0** - Modern standalone components architecture
+- **TypeScript 5.9.2** - Type-safe development
+- **RxJS 7.8.0** - Reactive programming for async operations
+- **Zone.js 0.15.0** - Change detection management
+
+### UI Framework
+- **Angular Material 20.2.14** - Material Design components
+- **Angular CDK 20.2.14** - Component Dev Kit (Overlay, Portal, Layout)
+- **Leaflet 1.9.4** - Interactive maps
+- **leaflet-moving-rotated-marker 0.0.1** - Animated aircraft markers
+
+### Build & Development
+- **Angular CLI 20.2.2** - Build tooling
+- **ESLint 9.39.1** - Code quality
+- **Jasmine/Karma** - Testing framework
+
+<Info>
+Air Tracker uses Angular's modern standalone component architecture, eliminating the need for NgModules and embracing a more streamlined development experience.
+</Info>
+
+## Application Structure
+
+The application follows a feature-based folder structure with clear separation of concerns:
+
+```
+src/app/
+├── core/                      # Singleton services & app-wide config
+│   └── services/
+│       ├── api-config.service.ts    # API configuration
+│       └── viewport.service.ts      # Responsive breakpoint detection
+│
+├── features/                  # Feature modules
+│   └── flights/              # Flight tracking feature
+│       ├── flights-shell/   # Container component
+│       ├── flights-map/     # Map visualization
+│       ├── flights-list/    # Tabular flight list
+│       ├── flight-detail-panel/        # Desktop detail view
+│       ├── flight-detail-bottom-sheet/ # Mobile detail view
+│       ├── ui/              # Feature-specific UI components
+│       │   ├── airline-display/
+│       │   ├── flight-status-led/
+│       │   └── flights-filter-menu/
+│       ├── services/        # Feature services
+│       │   ├── flights-api.service.ts    # HTTP API client
+│       │   ├── flights-store.service.ts  # State management
+│       │   └── map-marker.service.ts     # Map marker logic
+│       └── models/          # Domain models & DTOs
+│           ├── flight.model.ts
+│           ├── aircraft-photo.model.ts
+│           └── flight-filters.ts
+│
+└── shared/                   # Shared across features
+    ├── components/          # Reusable UI components
+    │   ├── loading-overlay/
+    │   ├── loading-spinner/
+    │   ├── polling-status/
+    │   └── server-error-overlay/
+    ├── ui/layout/           # Layout components
+    │   └── main-layout/
+    ├── models/              # Shared DTOs
+    │   ├── flight.dto.ts
+    │   └── aircraft-photo.dto.ts
+    ├── pipes/               # Custom pipes
+    └── constants/           # App constants
+```
+
+<Note>
+**Architecture Principles:**
+- **Core** - Singleton services loaded once at app startup
+- **Features** - Self-contained feature modules with their own services, components, and models
+- **Shared** - Reusable components, pipes, and utilities used across features
+</Note>
+
+## Component Hierarchy
+
+The application uses a hierarchical component structure:
+
+```
+App (root)
+└── RouterOutlet
+    └── MainLayoutComponent (shared/ui/layout)
+        └── FlightsShellComponent (feature container)
+            ├── FlightsMapComponent
+            │   └── MapMarkerService (markers & interactions)
+            ├── FlightsListComponent
+            │   └── MatTable (with sorting)
+            ├── FlightsFilterMenuComponent
+            └── Flight Detail (conditional)
+                ├── FlightDetailPanelComponent (desktop - CDK Overlay)
+                └── FlightDetailBottomSheetComponent (mobile - Material Bottom Sheet)
+```
+
+### Component Responsibilities
+
+#### FlightsShellComponent (`flights-shell.component.ts:56`)
+The main container component that:
+- Initializes smart polling on mount
+- Orchestrates child components (map, list, filters)
+- Manages responsive flight detail views (overlay vs bottom sheet)
+- Uses Angular effects to react to selection and viewport changes
+
+```typescript
+export class FlightsShellComponent implements OnInit {
+  protected readonly store = inject(FlightsStoreService);
+  private readonly viewport = inject(ViewportService);
+  
+  constructor() {
+    // React to selection changes
+    effect(() => {
+      const selectedId = this.store.selectedFlightId();
+      const viewportMode = this.viewport.mode();
+      
+      if (selectedId) {
+        this.openFlightDetailUI(selectedId);
+      } else {
+        this.closeFlightDetailUI();
+      }
+    });
+  }
+  
+  ngOnInit(): void {
+    this.store.startSmartPolling();
+  }
+}
+```
+
+#### FlightsMapComponent (`flights-map.component.ts:20`)
+Interactive Leaflet map that:
+- Renders aircraft markers with rotation and animation
+- Updates markers reactively using Angular effects
+- Handles marker click events for flight selection
+- Supports multiple base layers (streets, satellite)
+
+```typescript
+export class FlightsMapComponent implements AfterViewInit {
+  flights = input<Flight[]>([]);
+  private readonly markerService = inject(MapMarkerService);
+  
+  constructor() {
+    // Update markers when flights change
+    effect(() => {
+      const flights = this.flights();
+      if (this.map) {
+        this.markerService.updateMarkers(flights, this.markersLayer);
+      }
+    });
+    
+    // Update selected marker icon
+    effect(() => {
+      const selectedId = this.store.selectedFlightId();
+      const flights = this.flights();
+      if (this.map && flights.length) {
+        this.markerService.updateIcons(flights, selectedId);
+      }
+    });
+  }
+}
+```
+
+#### FlightsListComponent (`flights-list.component.ts:48`)
+Tabular view with:
+- Material Table with sorting
+- Reactive data binding using effects
+- Row selection for flight details
+- Custom sorting accessor for flight properties
+
+```typescript
+export class FlightsListComponent implements AfterViewInit {
+  store = inject(FlightsStoreService);
+  dataSource = new MatTableDataSource<Flight>([]);
+  
+  constructor() {
+    // Sync data source with filtered flights
+    effect(() => {
+      this.dataSource.data = this.store.filteredFlights();
+    });
+  }
+}
+```
+
+<Warning>
+The shell component uses Angular CDK Overlay for desktop and Material Bottom Sheet for mobile. This responsive approach ensures optimal UX across devices but requires careful lifecycle management to prevent memory leaks.
+</Warning>
+
+## Data Flow Architecture
+
+Air Tracker implements a unidirectional data flow pattern:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Backend API                             │
+│              (Flights + Aircraft Photos)                     │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+                         │ HTTP (polling)
+                         ▼
+           ┌─────────────────────────────┐
+           │   FlightsApiService         │
+           │   - getLiveFlights()        │
+           │   - getPhotosByIcao24()     │
+           └──────────────┬──────────────┘
+                          │
+                          │ Observable<DTO>
+                          ▼
+           ┌─────────────────────────────┐
+           │   FlightsStoreService       │
+           │   (State Management)        │
+           │                             │
+           │   Private Signals:          │
+           │   - _flights                │
+           │   - _selectedFlightId       │
+           │   - _loading                │
+           │   - _filters                │
+           │                             │
+           │   Computed Signals:         │
+           │   - filteredFlights         │
+           │   - operatorList            │
+           └──────────────┬──────────────┘
+                          │
+                          │ readonly signals
+                          ▼
+           ┌─────────────────────────────┐
+           │   Smart Components          │
+           │   - FlightsShellComponent   │
+           │   - FlightsMapComponent     │
+           │   - FlightsListComponent    │
+           └─────────────────────────────┘
+                          │
+                          │ @input() / signals
+                          ▼
+           ┌─────────────────────────────┐
+           │   Presentation Components   │
+           │   - FlightStatusLed         │
+           │   - AirlineDisplay          │
+           │   - PollingStatus           │
+           └─────────────────────────────┘
+```
+
+### Data Flow Principles
+
+1. **Single Source of Truth**: `FlightsStoreService` holds all flight-related state
+2. **Readonly Signals**: Components consume state via readonly signals, preventing direct mutations
+3. **Actions for Updates**: Components call store methods (`updateFilters`, `setSelectedFlightId`) to modify state
+4. **Computed Derivations**: Filtered views are automatically computed from base state
+5. **Effects for Side Effects**: Component effects react to signal changes for DOM updates
+
+<Info>
+**Why Signals over Observables?**
+
+Angular signals provide:
+- Automatic change detection optimization
+- Simpler mental model (no subscription management)
+- Better TypeScript inference
+- Built-in computed values and effects
+- Fine-grained reactivity
+</Info>
+
+## Standalone Components Architecture
+
+Air Tracker uses Angular's standalone components introduced in Angular 14 and stabilized in v15+:
+
+```typescript
+// app.config.ts:12
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideBrowserGlobalErrorListeners(),
+    provideZoneChangeDetection({ eventCoalescing: true }),
+    provideRouter(routes, withComponentInputBinding()),
+    provideHttpClient(),
+    importProvidersFrom(MatDialogModule),
+    {
+      provide: MAT_DIALOG_DEFAULT_OPTIONS,
+      useValue: { hasBackdrop: true, disableClose: false }
+    }
+  ],
+};
+```
+
+### Benefits of Standalone Architecture
+
+1. **No NgModules**: Simpler mental model, no module hierarchy to manage
+2. **Direct Imports**: Components declare dependencies directly in their `imports` array
+3. **Tree-Shakeable**: Better bundle optimization
+4. **Lazy Loading**: Simplified lazy loading with route-level code splitting
+5. **Provider Scoping**: Services can be provided at component level or root
+
+```typescript
+// Example standalone component
+@Component({
+  selector: 'app-flights-shell',
+  imports: [
+    FlightsListComponent,
+    FlightsMapComponent,
+    MatProgressBarModule,
+    // ... other dependencies
+  ],
+  templateUrl: './flights-shell.component.html',
+})
+export class FlightsShellComponent { }
+```
+
+## Service Layer
+
+### Core Services
+
+#### ApiConfigService (`core/services/api-config.service.ts:16`)
+Centralized API configuration:
+```typescript
+@Injectable({ providedIn: 'root' })
+export class ApiConfigService {
+  private readonly config: ApiConfig = {
+    apiBaseUrl: environment.apiBaseUrl,
+    features: environment.features,
+    production: environment.production,
+  };
+  
+  get apiBaseUrl(): string {
+    return this.config.apiBaseUrl;
+  }
+}
+```
+
+#### ViewportService (`core/services/viewport.service.ts:8`)
+Responsive breakpoint detection using CDK Layout:
+```typescript
+@Injectable({ providedIn: 'root' })
+export class ViewportService {
+  private readonly bp = inject(BreakpointObserver);
+  
+  readonly isMobile = computed(() => this.mobileRaw());
+  readonly isTablet = computed(() => this.tabletRaw());
+  readonly isDesktop = computed(() => !this.isMobile() && !this.isTablet());
+  
+  readonly mode = computed<ViewportMode>(() => {
+    if (this.isMobile()) return 'mobile';
+    if (this.isTablet()) return 'tablet';
+    return 'desktop';
+  });
+}
+```
+
+<Note>
+All core services use `providedIn: 'root'` to ensure singleton behavior across the application.
+</Note>
+
+## Routing Configuration
+
+Simple routing with layout wrapping:
+
+```typescript
+// app.routes.ts:6
+export const routes: Routes = [
+  {
+    path: '',
+    component: MainLayoutComponent,
+    children: [
+      {
+        path: '',
+        pathMatch: 'full',
+        redirectTo: 'flights',
+      },
+      {
+        path: 'flights',
+        component: FlightsShellComponent,
+      },
+    ],
+  },
+];
+```
+
+Router configuration with input binding:
+```typescript
+provideRouter(routes, withComponentInputBinding())
+```
+
+This enables route params to be bound directly as component inputs.
+
+## Key Architectural Decisions
+
+<Warning>
+**Smart Polling Design**
+
+The application uses adaptive polling intervals based on backend cache age. This prevents overwhelming the API while ensuring fresh data. See [State Management](/architecture/state-management) for implementation details.
+</Warning>
+
+<Info>
+**Responsive UI Strategy**
+
+Flight details render differently based on viewport:
+- **Desktop**: CDK Overlay positioned on the left
+- **Mobile/Tablet**: Material Bottom Sheet
+
+This provides optimal UX without code duplication.
+</Info>
+
+<Note>
+**DTO to Model Mapping**
+
+The app maintains separate DTOs (data transfer objects) and domain models:
+- **DTOs** (`shared/models/*.dto.ts`) - Match API contracts
+- **Models** (`features/*/models/*.model.ts`) - App-specific domain objects
+
+Mapper functions (`mapFlightDtoToFlight`) handle transformations.
+</Note>
+
+## Performance Optimizations
+
+1. **OnPush Change Detection**: Map component uses `ChangeDetectionStrategy.OnPush`
+2. **Computed Signals**: Filtered flights auto-memoize, only recalculate when dependencies change
+3. **Lazy Loading Ready**: Route-based code splitting supported (not yet implemented)
+4. **Zone Coalescing**: `provideZoneChangeDetection({ eventCoalescing: true })` reduces change detection cycles
+5. **Leaflet Layer Management**: Reuses marker instances instead of destroying/recreating
+
+## Next Steps
+
+- [State Management](/architecture/state-management) - Deep dive into signal-based reactive state
+- [API Integration](/architecture/api-integration) - Backend communication patterns

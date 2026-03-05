@@ -1,0 +1,369 @@
+---
+title: FlightsListComponent
+description: Sortable table displaying flight data with selection and filtering
+---
+
+## Overview
+
+`FlightsListComponent` provides a tabular view of flight data using Angular Material's table component. It supports sorting, row selection, and integrates with the global filter system.
+
+**Location:** `src/app/features/flights/flights-list/flights-list.component.ts`
+
+## Key Features
+
+- **Sortable Columns**: Click column headers to sort data
+- **Row Selection**: Click rows to select/deselect flights
+- **Reactive Filtering**: Automatically updates when filters change
+- **Status Indicators**: Visual LED indicators for flight status
+- **Responsive Design**: Adapts to different screen sizes
+
+## Component Configuration
+
+```typescript
+@Component({
+  selector: 'app-flights-list',
+  imports: [
+    CommonModule,
+    MatCardModule,
+    MatProgressBarModule,
+    MatIconModule,
+    MatDividerModule,
+    MatTooltipModule,
+    MatFormFieldModule,
+    MatSelectModule,
+    ReactiveFormsModule,
+    MatMenuModule,
+    MatButtonModule,
+    MatListModule,
+    MatRadioModule,
+    MatTableModule,
+    MatSortModule,
+    FlightStatusLedComponent,
+    FlightsFilterMenuComponent
+  ],
+  templateUrl: './flights-list.component.html',
+  styleUrl: './flights-list.component.scss',
+})
+export class FlightsListComponent implements AfterViewInit
+```
+
+## Table Structure
+
+### Displayed Columns
+
+```typescript
+displayedColumns: string[] = ['callsign', 'icao24', 'operator', 'flyingStatus'];
+```
+
+| Column | Description | Sortable |
+|--------|-------------|----------|
+| `callsign` | Flight callsign/identifier | Yes |
+| `icao24` | Aircraft ICAO24 address | Yes |
+| `operator` | Airline/operator name | Yes |
+| `flyingStatus` | On-ground or flying status | Yes |
+
+### Data Source
+
+```typescript
+dataSource = new MatTableDataSource<Flight>([]);
+@ViewChild(MatSort) sort!: MatSort;
+```
+
+The component uses Material's `MatTableDataSource` for built-in sorting and filtering capabilities.
+
+## Reactive Data Binding
+
+The table automatically updates when filtered flights change:
+
+```typescript
+store = inject(FlightsStoreService);
+
+constructor() {
+  effect(() => {
+    this.dataSource.data = this.store.filteredFlights();
+  });
+}
+```
+
+### Effect Flow
+
+1. `store.filteredFlights()` signal changes
+2. Effect triggers and updates `dataSource.data`
+3. Table automatically re-renders with new data
+
+## Sorting Configuration
+
+### Setup
+
+```typescript
+ngAfterViewInit() {
+  this.dataSource.sort = this.sort;
+  this.dataSource.sortingDataAccessor = (item: Flight, property: string) => {
+    switch (property) {
+      case 'callsign':
+        return item.callsign?.toLowerCase() || '';
+      case 'icao24':
+        return item.icao24.toLowerCase();
+      case 'operator':
+        return item.operator?.toLowerCase() || '';
+      case 'flyingStatus':
+        return item.onGround ? 1 : 0;
+      default:
+        console.warn(`Propiedad no manejada en sorting: ${property}`);
+        return '';
+    }
+  };
+}
+```
+
+### Custom Sort Logic
+
+- **Text Columns**: Case-insensitive alphabetical sorting
+- **Nullable Fields**: Empty strings for null values (sorted to top/bottom)
+- **Flying Status**: Boolean converted to number (0 = flying, 1 = on ground)
+
+### Usage in Template
+
+```html
+<table mat-table [dataSource]="dataSource" matSort>
+  <ng-container matColumnDef="callsign">
+    <th mat-header-cell *matHeaderCellDef mat-sort-header>Callsign</th>
+    <td mat-cell *matCellDef="let flight">{{ flight.callsign || '—' }}</td>
+  </ng-container>
+  
+  <!-- Other columns... -->
+</table>
+```
+
+## Row Selection
+
+Clicking a row toggles flight selection:
+
+```typescript
+handleRowClicked(flightId: string): void {
+  if (this.store.selectedFlightId() === flightId) {
+    this.store.clearSelection();
+  } else {
+    this.store.setSelectedFlightId(flightId);
+  }
+}
+```
+
+### Selection Behavior
+
+- **First Click**: Selects the flight
+- **Second Click**: Deselects the flight
+- **Different Flight**: Switches selection to new flight
+
+### Visual Feedback
+
+Selected rows typically have CSS styling:
+
+```scss
+.mat-row {
+  cursor: pointer;
+  
+  &.selected {
+    background-color: rgba(63, 81, 181, 0.1);
+  }
+  
+  &:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+  }
+}
+```
+
+## Integration with Filters
+
+The component automatically respects global filters:
+
+```typescript
+// In FlightsStoreService
+filteredFlights = computed(() => {
+  const allFlights = this._flights();
+  const { operator, onGround } = this._filters();
+
+  return allFlights.filter(flight => {
+    // Operator filter
+    if (operator && operator !== '') {
+      if (operator === 'Other') {
+        return flight.operator == null || flight.operator === '';
+      }
+      return flight.operator === operator;
+    }
+    return true;
+  }).filter(flight => {
+    // Ground status filter
+    if (onGround === 'all') return true;
+    if (onGround === 'flying') return !flight.onGround;
+    if (onGround === 'onGround') return flight.onGround;
+    return true;
+  });
+});
+```
+
+The list component consumes this computed signal, automatically updating when filters change.
+
+## Status Indicators
+
+The flying status column uses a custom LED component:
+
+```html
+<ng-container matColumnDef="flyingStatus">
+  <th mat-header-cell *matHeaderCellDef mat-sort-header>Status</th>
+  <td mat-cell *matCellDef="let flight">
+    <app-flight-status-led [onGround]="flight.onGround" />
+  </td>
+</ng-container>
+```
+
+**FlightStatusLedComponent** displays:
+- Green LED: Flying
+- Red LED: On ground
+
+## Template Structure
+
+```html
+<mat-card>
+  <mat-card-header>
+    <mat-card-title>Flights</mat-card-title>
+    <app-flights-filter-menu />
+  </mat-card-header>
+  
+  <mat-card-content>
+    <table mat-table [dataSource]="dataSource" matSort>
+      <!-- Column definitions -->
+      
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr 
+        mat-row 
+        *matRowDef="let row; columns: displayedColumns;"
+        [class.selected]="store.selectedFlightId() === row.icao24"
+        (click)="handleRowClicked(row.icao24)"
+      ></tr>
+    </table>
+  </mat-card-content>
+</mat-card>
+```
+
+## Usage Example
+
+The component is typically used in the FlightsShellComponent:
+
+```typescript
+@Component({
+  template: `
+    <div class="flights-shell">
+      <app-flights-map [flights]="store.filteredFlights()" />
+      <app-flights-list />
+    </div>
+  `
+})
+export class FlightsShellComponent {
+  protected readonly store = inject(FlightsStoreService);
+}
+```
+
+No inputs or outputs are required—the component gets all data from the store.
+
+## Accessibility
+
+### Keyboard Navigation
+
+- **Tab**: Navigate between rows
+- **Enter/Space**: Trigger row click
+- **Arrow Keys**: When sorting is active
+
+### ARIA Labels
+
+```html
+<table 
+  mat-table 
+  [dataSource]="dataSource" 
+  matSort
+  aria-label="Flight information table"
+>
+  <th mat-header-cell mat-sort-header aria-label="Sort by callsign">
+    Callsign
+  </th>
+</table>
+```
+
+## Performance Considerations
+
+### Change Detection
+
+Uses default change detection strategy. The effect automatically triggers change detection when `filteredFlights()` changes.
+
+### Large Datasets
+
+For very large datasets (>1000 rows), consider:
+
+1. **Virtual Scrolling**: Use `@angular/cdk/scrolling`
+2. **Pagination**: Add `MatPaginator`
+3. **Server-Side Sorting**: Move sort logic to backend
+
+### Example with Pagination
+
+```typescript
+@ViewChild(MatPaginator) paginator!: MatPaginator;
+
+ngAfterViewInit() {
+  this.dataSource.sort = this.sort;
+  this.dataSource.paginator = this.paginator;
+}
+```
+
+## Common Customizations
+
+### Adding More Columns
+
+```typescript
+displayedColumns = ['callsign', 'icao24', 'operator', 'altitude', 'velocity', 'flyingStatus'];
+```
+
+```html
+<ng-container matColumnDef="altitude">
+  <th mat-header-cell *matHeaderCellDef mat-sort-header>Altitude</th>
+  <td mat-cell *matCellDef="let flight">
+    {{ flight.altitudeBaro | unit:'m':'ft' }}
+  </td>
+</ng-container>
+```
+
+### Custom Row Styling
+
+```typescript
+getRowClass(flight: Flight): string {
+  if (flight.onGround) return 'on-ground';
+  if (flight.altitudeBaro && flight.altitudeBaro > 10000) return 'high-altitude';
+  return '';
+}
+```
+
+```html
+<tr 
+  mat-row 
+  *matRowDef="let row; columns: displayedColumns;"
+  [ngClass]="getRowClass(row)"
+></tr>
+```
+
+## Related Components
+
+- [FlightsShellComponent](/components/flights-shell) - Parent container
+- [FlightsMapComponent](/components/flights-map) - Map companion view
+- [FlightsFilterMenuComponent] - Filter controls
+- [FlightStatusLedComponent] - Status indicator
+
+## Services Used
+
+- **FlightsStoreService** - Flight data and selection state
+
+## Material Dependencies
+
+- `MatTableModule` - Table structure
+- `MatSortModule` - Column sorting
+- `MatCardModule` - Card container
+- `MatIconModule` - Icons
+- `MatTooltipModule` - Tooltips

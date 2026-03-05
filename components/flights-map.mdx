@@ -1,0 +1,325 @@
+---
+title: FlightsMapComponent
+description: Interactive Leaflet map for displaying and tracking aircraft positions
+---
+
+## Overview
+
+`FlightsMapComponent` provides an interactive map visualization using Leaflet.js to display real-time aircraft positions. The component handles map initialization, marker management, base layer switching, and user interactions.
+
+**Location:** `src/app/features/flights/flights-map/flights-map.component.ts`
+
+## Key Features
+
+- **Leaflet Integration**: Interactive map with zoom and pan controls
+- **Dynamic Markers**: Rotating aircraft icons that update with flight positions
+- **Base Layer Switching**: Toggle between street and satellite map views
+- **Selection Handling**: Visual feedback for selected flights
+- **Reactive Updates**: Automatic marker updates when flight data changes
+
+## Inputs
+
+<ParamField path="flights" type="Flight[]" default="[]">
+  Array of flight objects to display on the map. Each flight must include latitude, longitude, and heading for proper marker placement and rotation.
+
+  ```typescript
+  flights = input<Flight[]>([]);
+  ```
+
+  **Flight Interface:**
+  ```typescript
+  interface Flight {
+    icao24: string;          // Unique aircraft identifier
+    callsign: string | null; // Flight callsign
+    latitude: number | null; // Current latitude
+    longitude: number | null;// Current longitude
+    heading: number | null;  // Aircraft heading (0-360 degrees)
+    onGround: boolean;       // Ground/air status
+    // ... additional properties
+  }
+  ```
+</ParamField>
+
+## Component Configuration
+
+```typescript
+@Component({
+  selector: 'app-flights-map',
+  imports: [CommonModule, MatButtonToggleModule],
+  templateUrl: './flights-map.component.html',
+  styleUrl: './flights-map.component.scss',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  encapsulation: ViewEncapsulation.None,
+})
+export class FlightsMapComponent implements AfterViewInit, OnDestroy
+```
+
+### Change Detection Strategy
+
+Uses `OnPush` for optimized performance with reactive inputs.
+
+### View Encapsulation
+
+Uses `None` to allow Leaflet CSS to properly style map elements.
+
+## Map Initialization
+
+The map is initialized after the view is ready:
+
+```typescript
+private initiateMap(): void {
+  this.map = L.map('map', {
+    center: [40, 0],
+    zoom: 6,
+    zoomSnap: 1,
+    zoomDelta: 1,
+    zoomControl: false,
+  });
+
+  this.setBaseLayer('streets');
+  this.markersLayer.addTo(this.map);
+
+  const zoom = L.control.zoom({ position: 'topleft' });
+  zoom.addTo(this.map);
+
+  const zoomEl = zoom.getContainer();
+  if (zoomEl) {
+    this.zoomHost.nativeElement.appendChild(zoomEl);
+  }
+}
+```
+
+### Map Configuration
+
+- **Initial Center**: `[40, 0]` (latitude, longitude)
+- **Initial Zoom**: Level 6
+- **Zoom Controls**: Repositioned to top-left and moved to custom host element
+- **Default Layer**: Streets view
+
+## Marker Management
+
+The component uses a dedicated `MapMarkerService` to handle marker lifecycle:
+
+```typescript
+constructor() {
+  effect(() => {
+    const flights = this.flights();
+    if (this.map) {
+      this.markerService.updateMarkers(flights, this.markersLayer);
+    }
+  });
+
+  effect(() => {
+    const selectedId = this.store.selectedFlightId();
+    const flights = this.flights();
+    if (this.map && flights.length) {
+      this.markerService.updateIcons(flights, selectedId);
+    }
+  });
+}
+```
+
+### Marker Updates
+
+Two reactive effects handle marker updates:
+
+1. **Position Updates**: When flight positions change
+   - Adds new markers for new flights
+   - Removes markers for flights no longer in the array
+   - Updates positions for existing flights
+
+2. **Icon Updates**: When flight selection changes
+   - Highlights selected flight marker
+   - Resets previously selected marker
+
+## Base Layer Switching
+
+The component supports multiple map base layers:
+
+```typescript
+private setBaseLayer(name: BaseLayerKey): void {
+  const newLayer = this.baseLayers[name];
+  if (!this.map || !newLayer) return;
+
+  if (this.currentBaseLayer) {
+    this.map.removeLayer(this.currentBaseLayer);
+  }
+
+  newLayer.addTo(this.map);
+  this.currentBaseLayer = newLayer;
+}
+
+changeBase(name: BaseLayerKey): void {
+  this.setBaseLayer(name);
+}
+```
+
+### Available Base Layers
+
+Base layers are defined in `flights-map.layers.ts`:
+
+```typescript
+type BaseLayerKey = 'streets' | 'satellite' | 'terrain';
+```
+
+## Selection Handling
+
+Users can clear the current flight selection:
+
+```typescript
+clearSelection(): void {
+  this.store.clearSelection();
+}
+```
+
+This method is typically called when clicking on the map background.
+
+## Lifecycle Management
+
+### AfterViewInit
+
+```typescript
+ngAfterViewInit(): void {
+  this.initiateMap();
+
+  setTimeout(() => {
+    const flights = this.flights();
+    if (flights.length) {
+      this.markerService.updateMarkers(flights, this.markersLayer);
+    }
+  }, 50);
+}
+```
+
+Initializes the map and performs an initial marker update after a brief delay to ensure DOM is ready.
+
+### OnDestroy
+
+```typescript
+ngOnDestroy(): void {
+  if (this.map) {
+    this.map.remove();
+  }
+}
+```
+
+Properly cleans up Leaflet map instance to prevent memory leaks.
+
+## Dependency Injection
+
+```typescript
+private readonly markerService = inject(MapMarkerService);
+private readonly store = inject(FlightsStoreService);
+```
+
+- **MapMarkerService**: Handles marker creation, updates, and icon management
+- **FlightsStoreService**: Provides selected flight state
+
+## Template Integration
+
+The component template includes:
+
+```html
+<div class="map-container">
+  <div #mapContainer id="map"></div>
+  <div #zoomHost class="zoom-control-host"></div>
+  
+  <mat-button-toggle-group class="base-layer-toggle">
+    <mat-button-toggle value="streets" (click)="changeBase('streets')">
+      Streets
+    </mat-button-toggle>
+    <mat-button-toggle value="satellite" (click)="changeBase('satellite')">
+      Satellite
+    </mat-button-toggle>
+  </mat-button-toggle-group>
+  
+  <button mat-icon-button (click)="clearSelection()">
+    Clear Selection
+  </button>
+</div>
+```
+
+## Usage Example
+
+Use the component in your template with flight data:
+
+```typescript
+// In parent component
+@Component({
+  template: `
+    <app-flights-map [flights]="filteredFlights()" />
+  `
+})
+export class ParentComponent {
+  protected readonly store = inject(FlightsStoreService);
+  
+  filteredFlights = this.store.filteredFlights;
+}
+```
+
+## Leaflet Plugin
+
+The component uses the `leaflet-moving-rotated-marker` plugin for smooth marker animations:
+
+```typescript
+import 'leaflet-moving-rotated-marker';
+```
+
+This plugin enables:
+- Smooth marker movement between positions
+- Rotation to match aircraft heading
+- Animated transitions
+
+## Performance Considerations
+
+### OnPush Change Detection
+
+The component uses `OnPush` change detection strategy. Inputs must be immutable or use signals for change detection to work properly.
+
+### Marker Pooling
+
+The `MapMarkerService` reuses marker instances when possible to avoid creating/destroying DOM elements unnecessarily.
+
+### Effect Batching
+
+Angular effects automatically batch updates, preventing redundant marker updates when multiple signals change simultaneously.
+
+## Common Issues
+
+### Map Not Displaying
+
+Ensure Leaflet CSS is imported in your styles:
+
+```scss
+@import 'leaflet/dist/leaflet.css';
+```
+
+### Markers Not Rotating
+
+Verify that:
+1. The `leaflet-moving-rotated-marker` plugin is imported
+2. Flight objects have valid `heading` values (0-360)
+3. The MapMarkerService is properly configured
+
+### Zoom Controls Not Appearing
+
+Check that:
+1. The `#zoomHost` element exists in the template
+2. The element has appropriate CSS styling
+3. The zoom control initialization runs after view initialization
+
+## Related Components
+
+- [FlightsShellComponent](/components/flights-shell) - Parent orchestration component
+- [FlightsListComponent](/components/flights-list) - Companion list view
+
+## Services Used
+
+- **MapMarkerService** - Marker lifecycle management
+- **FlightsStoreService** - Flight data and selection state
+
+## External Dependencies
+
+- **Leaflet** - Core mapping library
+- **leaflet-moving-rotated-marker** - Animated rotating markers
+- **@angular/material/button-toggle** - Base layer switcher UI

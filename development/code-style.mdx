@@ -1,0 +1,540 @@
+---
+title: Code Style Guide
+description: Code style and formatting guidelines for Air Tracker
+---
+
+Air Tracker follows strict code style guidelines to ensure consistency and maintainability. This guide covers ESLint configuration, Prettier settings, TypeScript conventions, and Angular best practices.
+
+## Linting with ESLint
+
+Air Tracker uses ESLint with Angular-specific rules for code quality and consistency.
+
+### Running ESLint
+
+<CodeGroup>
+```bash Check for issues
+npm run lint
+```
+
+```bash Auto-fix issues
+npm run lint:fix
+```
+
+```bash Angular CLI
+ng lint
+ng lint --fix
+```
+</CodeGroup>
+
+### ESLint Configuration
+
+Configuration is defined in `eslint.config.js`:
+
+```javascript
+const eslint = require("@eslint/js");
+const tseslint = require("typescript-eslint");
+const angular = require("angular-eslint");
+
+module.exports = defineConfig([
+  {
+    files: ["**/*.ts"],
+    extends: [
+      eslint.configs.recommended,
+      tseslint.configs.recommended,
+      tseslint.configs.stylistic,
+      angular.configs.tsRecommended,
+    ],
+    processor: angular.processInlineTemplates,
+    rules: {
+      "@angular-eslint/directive-selector": [
+        "error",
+        {
+          type: "attribute",
+          prefix: "app",
+          style: "camelCase",
+        },
+      ],
+      "@angular-eslint/component-selector": [
+        "error",
+        {
+          type: "element",
+          prefix: "app",
+          style: "kebab-case",
+        },
+      ],
+    },
+  },
+  {
+    files: ["**/*.html"],
+    extends: [
+      angular.configs.templateRecommended,
+      angular.configs.templateAccessibility,
+    ],
+  }
+]);
+```
+
+### Key ESLint Rules
+
+#### Component Selectors
+
+Components must use `kebab-case` with `app` prefix:
+
+```typescript
+// ✅ Correct
+@Component({
+  selector: 'app-flights-shell',
+  // ...
+})
+export class FlightsShellComponent {}
+
+// ❌ Incorrect
+@Component({
+  selector: 'flightsShell',  // Wrong: should be kebab-case
+  // ...
+})
+```
+
+#### Directive Selectors
+
+Directives must use `camelCase` with `app` prefix:
+
+```typescript
+// ✅ Correct
+@Directive({
+  selector: '[appHighlight]',
+  // ...
+})
+export class HighlightDirective {}
+
+// ❌ Incorrect
+@Directive({
+  selector: '[highlight]',  // Missing prefix
+  // ...
+})
+```
+
+#### Template Accessibility
+
+Templates are checked for accessibility issues:
+
+```html
+<!-- ✅ Correct -->
+<img src="plane.jpg" alt="Aircraft taking off" />
+
+<!-- ❌ Incorrect -->
+<img src="plane.jpg" /> <!-- Missing alt attribute -->
+```
+
+## Code Formatting with Prettier
+
+Prettier is configured in `package.json`:
+
+```json
+"prettier": {
+  "printWidth": 100,
+  "singleQuote": true,
+  "overrides": [
+    {
+      "files": "*.html",
+      "options": {
+        "parser": "angular"
+      }
+    }
+  ]
+}
+```
+
+### Prettier Rules
+
+- **Line Length**: Maximum 100 characters
+- **Quotes**: Single quotes for strings
+- **HTML Parser**: Angular-aware HTML parsing
+
+### Running Prettier
+
+<CodeGroup>
+```bash Check formatting
+npx prettier --check "src/**/*.{ts,html,scss}"
+```
+
+```bash Format files
+npx prettier --write "src/**/*.{ts,html,scss}"
+```
+</CodeGroup>
+
+## TypeScript Conventions
+
+### TypeScript Configuration
+
+Air Tracker uses strict TypeScript settings in `tsconfig.json`:
+
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "experimentalDecorators": true,
+    "target": "ES2022"
+  },
+  "angularCompilerOptions": {
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true,
+    "strictTemplates": true
+  }
+}
+```
+
+### Type Safety
+
+Always use explicit types:
+
+```typescript
+// ✅ Correct
+function calculateRemainingTime(nextUpdate: number, current: number): number {
+  return Math.max(0, nextUpdate - current);
+}
+
+// ❌ Incorrect
+function calculateRemainingTime(nextUpdate, current) {
+  return Math.max(0, nextUpdate - current);
+}
+```
+
+### Avoid `any`
+
+```typescript
+// ✅ Correct
+function processError(error: Error | HttpErrorResponse): void {
+  if (error instanceof HttpErrorResponse) {
+    // Handle HTTP error
+  }
+}
+
+// ❌ Incorrect
+function processError(error: any): void {
+  // Type information lost
+}
+```
+
+### Use `unknown` for Uncertain Types
+
+From `flights-store.service.ts:183`:
+
+```typescript
+catchError((err: unknown) => {
+  console.error('❌ Polling failed:', err);
+  // ...
+})
+```
+
+## Angular Style Guide
+
+Air Tracker follows the [Official Angular Style Guide](https://angular.dev/style-guide) with these specific conventions:
+
+### File Naming
+
+- **Components**: `feature-name.component.ts`
+- **Services**: `feature-name.service.ts`
+- **Models**: `feature-name.model.ts`
+- **Specs**: `feature-name.component.spec.ts`
+
+Examples:
+```
+flights-shell.component.ts
+flights-shell.component.html
+flights-shell.component.scss
+flights-shell.component.spec.ts
+flights-store.service.ts
+flight.model.ts
+```
+
+### Class Naming
+
+```typescript
+// Components
+export class FlightsShellComponent {}
+
+// Services
+export class FlightsStoreService {}
+
+// Models
+export interface Flight {}
+export class AircraftPhoto {}
+```
+
+### Import Order
+
+Organize imports in this order:
+
+1. Angular core imports
+2. Angular material/CDK imports
+3. Third-party libraries
+4. Application imports (services, models, components)
+
+Example from `flights-shell.component.ts:1-36`:
+
+```typescript
+// 1. Angular core
+import {
+  Component,
+  ComponentRef,
+  effect,
+  inject,
+  OnInit,
+} from '@angular/core';
+
+// 2. Angular Material/CDK
+import { MatGridListModule } from '@angular/material/grid-list';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { Overlay, OverlayRef } from '@angular/cdk/overlay';
+
+// 3. Third-party
+import { catchError, of, take } from 'rxjs';
+
+// 4. Application
+import { FlightsStoreService } from '../services/flights-store.service';
+import { FlightsApiService } from '../services/flights-api.service';
+import { FlightsListComponent } from '../flights-list/flights-list.component';
+```
+
+### Access Modifiers
+
+Always use explicit access modifiers:
+
+```typescript
+// ✅ Correct (from flights-shell.component.ts:57-62)
+export class FlightsShellComponent {
+  protected readonly store = inject(FlightsStoreService);
+  private readonly overlay = inject(Overlay);
+  private readonly api = inject(FlightsApiService);
+  
+  private overlayRef: OverlayRef | null = null;
+}
+
+// ❌ Incorrect
+export class FlightsShellComponent {
+  store = inject(FlightsStoreService);  // No access modifier
+  overlayRef: OverlayRef | null = null;  // No access modifier
+}
+```
+
+### Readonly Properties
+
+Use `readonly` for injected dependencies:
+
+```typescript
+// ✅ Correct
+protected readonly store = inject(FlightsStoreService);
+private readonly api = inject(FlightsApiService);
+
+// ❌ Incorrect
+protected store = inject(FlightsStoreService);  // Not readonly
+```
+
+## Code Organization
+
+### Service Structure
+
+Organize service code in sections (example from `flights-store.service.ts:14-167`):
+
+```typescript
+@Injectable({ providedIn: 'root' })
+export class FlightsStoreService {
+  // 1. INJECTED SERVICES
+  private readonly api = inject(FlightsApiService);
+
+  // 2. POLLING CONTROL
+  private pollingTimeoutId?: ReturnType<typeof setTimeout>;
+
+  // 3. PRIVATE STATE (writable signals)
+  private readonly _flights = signal<Flight[]>([]);
+  private readonly _loading = signal(false);
+
+  // 4. PUBLIC STATE (readonly signals)
+  readonly flights = this._flights.asReadonly();
+  readonly loading = this._loading.asReadonly();
+
+  // 5. DERIVED STATE (computed signals)
+  readonly filteredFlights = computed(() => {
+    // ...
+  });
+
+  // 6. PUBLIC ACTIONS
+  updateFilters(newFilters: Partial<FlightFilters>): void {
+    // ...
+  }
+
+  // 7. PRIVATE METHODS
+  private poll(): void {
+    // ...
+  }
+}
+```
+
+### Component Structure
+
+```typescript
+@Component({
+  selector: 'app-my-component',
+  // ...
+})
+export class MyComponent implements OnInit, OnDestroy {
+  // 1. Inputs and Outputs
+  @Input() data: Data;
+  @Output() action = new EventEmitter();
+
+  // 2. Injected dependencies
+  private readonly service = inject(MyService);
+
+  // 3. Public properties
+  readonly displayData = signal<Data[]>([]);
+
+  // 4. Private properties
+  private subscription?: Subscription;
+
+  // 5. Constructor
+  constructor() {
+    // Effects, watchers
+  }
+
+  // 6. Lifecycle hooks
+  ngOnInit(): void {}
+  ngOnDestroy(): void {}
+
+  // 7. Public methods
+  handleClick(): void {}
+
+  // 8. Private methods
+  private processData(): void {}
+}
+```
+
+## Comments and Documentation
+
+### JSDoc for Public APIs
+
+Document public methods and complex logic:
+
+```typescript
+/**
+ * Update filters partially (merge with current)
+ * @param newFilters - Partial filter updates
+ * @example store.updateFilters({ operator: 'Iberia' })
+ */
+updateFilters(newFilters: Partial<FlightFilters>): void {
+  this._filters.update(current => ({ ...current, ...newFilters }));
+}
+```
+
+### Inline Comments
+
+Use comments for complex logic:
+
+```typescript
+// Filter by operator
+if (operator === 'Other') {
+  return flight.operator == null || flight.operator === '';
+}
+```
+
+### Section Comments
+
+Use section dividers for clarity:
+
+```typescript
+// =========================================================================
+// 1. INJECTED SERVICES
+// =========================================================================
+private readonly api = inject(FlightsApiService);
+```
+
+## Common Patterns
+
+### Signals
+
+Use signals for reactive state:
+
+```typescript
+// Private writable signal
+private readonly _loading = signal(false);
+
+// Public readonly signal
+readonly loading = this._loading.asReadonly();
+
+// Computed signal
+readonly isReady = computed(() => !this.loading());
+```
+
+### Dependency Injection
+
+Use `inject()` function:
+
+```typescript
+export class MyComponent {
+  private readonly service = inject(MyService);
+  protected readonly viewport = inject(ViewportService);
+}
+```
+
+### Error Handling
+
+```typescript
+this.api.getData()
+  .pipe(
+    catchError((err: unknown) => {
+      console.error('❌ Failed:', err);
+      return of(null);
+    })
+  )
+  .subscribe(data => {
+    if (!data) return;
+    // Process data
+  });
+```
+
+## IDE Integration
+
+### VS Code Settings
+
+Create `.vscode/settings.json`:
+
+```json
+{
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  },
+  "eslint.validate": [
+    "javascript",
+    "typescript",
+    "html"
+  ]
+}
+```
+
+## Pre-commit Hooks
+
+Consider setting up Husky with lint-staged:
+
+```json
+{
+  "lint-staged": {
+    "*.ts": ["eslint --fix", "prettier --write"],
+    "*.html": ["prettier --write"],
+    "*.scss": ["prettier --write"]
+  }
+}
+```
+
+## Next Steps
+
+- Learn about [component development guidelines](/development/component-guidelines)
+- Read the [contributing guide](/development/contributing)
+- Review [testing best practices](/development/testing)

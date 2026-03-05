@@ -1,0 +1,221 @@
+---
+title: 'Flight Filters'
+description: 'Filter interface for querying and filtering flight data'
+---
+
+## Overview
+
+The `FlightFilters` interface defines the available filter criteria for querying and displaying flights. These filters allow users to narrow down the visible flights based on operator and ground status.
+
+## Interface Definition
+
+```typescript
+export interface FlightFilters {
+  operator: string | null;
+  onGround: 'all' | 'flying' | 'onGround';
+}
+```
+
+## Properties
+
+<ResponseField name="operator" type="string | null" required>
+  Filter flights by operator/airline name. When set to a string value, only flights matching that operator will be shown. When null, no operator filtering is applied and all operators are included.
+</ResponseField>
+
+<ResponseField name="onGround" type="'all' | 'flying' | 'onGround'" required>
+  Filter flights by ground status:
+  - `'all'` - Show all flights regardless of ground status
+  - `'flying'` - Show only airborne flights (onGround = false)
+  - `'onGround'` - Show only flights on the ground (onGround = true)
+</ResponseField>
+
+## Usage in Filtering
+
+The `FlightFilters` interface is typically used to control which flights are displayed on the map or in flight lists.
+
+### Applying Filters
+
+```typescript
+import type { Flight } from './models/flight.model';
+import type { FlightFilters } from './models/flight-filters';
+
+function applyFilters(flights: Flight[], filters: FlightFilters): Flight[] {
+  return flights.filter(flight => {
+    // Filter by operator
+    if (filters.operator !== null) {
+      const matchesOperator = flight.operator?.toLowerCase().includes(filters.operator.toLowerCase());
+      if (!matchesOperator) return false;
+    }
+    
+    // Filter by ground status
+    if (filters.onGround === 'flying' && flight.onGround) {
+      return false;
+    }
+    if (filters.onGround === 'onGround' && !flight.onGround) {
+      return false;
+    }
+    
+    return true;
+  });
+}
+```
+
+### Creating Default Filters
+
+```typescript
+import type { FlightFilters } from './models/flight-filters';
+
+const defaultFilters: FlightFilters = {
+  operator: null,
+  onGround: 'all'
+};
+```
+
+## Examples
+
+### Filtering for Specific Operator
+
+```typescript
+import type { Flight } from './models/flight.model';
+import type { FlightFilters } from './models/flight-filters';
+
+const flights: Flight[] = [
+  { icao24: "a1b2c3", operator: "United Airlines", onGround: false, /* ... */ },
+  { icao24: "d4e5f6", operator: "Delta Air Lines", onGround: false, /* ... */ },
+  { icao24: "g7h8i9", operator: "American Airlines", onGround: true, /* ... */ }
+];
+
+const filters: FlightFilters = {
+  operator: "United",
+  onGround: 'all'
+};
+
+const filtered = applyFilters(flights, filters);
+// Result: Only United Airlines flights
+```
+
+### Filtering for Airborne Flights Only
+
+```typescript
+const filters: FlightFilters = {
+  operator: null,
+  onGround: 'flying'
+};
+
+const airborneFlights = applyFilters(flights, filters);
+// Result: Only flights where onGround = false
+```
+
+### Filtering for Specific Operator on Ground
+
+```typescript
+const filters: FlightFilters = {
+  operator: "Delta",
+  onGround: 'onGround'
+};
+
+const groundedDeltaFlights = applyFilters(flights, filters);
+// Result: Only Delta flights that are on the ground
+```
+
+### Filter State Management with React
+
+```typescript
+import { useState } from 'react';
+import type { FlightFilters } from './models/flight-filters';
+import type { Flight } from './models/flight.model';
+
+function FlightMap({ flights }: { flights: Flight[] }) {
+  const [filters, setFilters] = useState<FlightFilters>({
+    operator: null,
+    onGround: 'all'
+  });
+
+  const handleOperatorChange = (operator: string | null) => {
+    setFilters(prev => ({ ...prev, operator }));
+  };
+
+  const handleGroundStatusChange = (onGround: 'all' | 'flying' | 'onGround') => {
+    setFilters(prev => ({ ...prev, onGround }));
+  };
+
+  const filteredFlights = applyFilters(flights, filters);
+
+  return (
+    <div>
+      <FilterControls
+        filters={filters}
+        onOperatorChange={handleOperatorChange}
+        onGroundStatusChange={handleGroundStatusChange}
+      />
+      <Map flights={filteredFlights} />
+    </div>
+  );
+}
+```
+
+### Advanced Filtering with Multiple Operators
+
+```typescript
+import type { Flight } from './models/flight.model';
+import type { FlightFilters } from './models/flight-filters';
+
+interface ExtendedFlightFilters extends FlightFilters {
+  operators?: string[]; // Support multiple operators
+}
+
+function applyExtendedFilters(flights: Flight[], filters: ExtendedFlightFilters): Flight[] {
+  return flights.filter(flight => {
+    // Filter by multiple operators
+    if (filters.operators && filters.operators.length > 0) {
+      const matchesAnyOperator = filters.operators.some(op => 
+        flight.operator?.toLowerCase().includes(op.toLowerCase())
+      );
+      if (!matchesAnyOperator) return false;
+    }
+    // Fall back to single operator filter
+    else if (filters.operator !== null) {
+      const matchesOperator = flight.operator?.toLowerCase().includes(filters.operator.toLowerCase());
+      if (!matchesOperator) return false;
+    }
+    
+    // Filter by ground status
+    if (filters.onGround === 'flying' && flight.onGround) return false;
+    if (filters.onGround === 'onGround' && !flight.onGround) return false;
+    
+    return true;
+  });
+}
+
+const multiOperatorFilters: ExtendedFlightFilters = {
+  operator: null,
+  operators: ["United", "Delta", "American"],
+  onGround: 'flying'
+};
+```
+
+### Getting Available Operators from Flights
+
+```typescript
+import type { Flight } from './models/flight.model';
+
+function getAvailableOperators(flights: Flight[]): string[] {
+  const operatorSet = new Set<string>();
+  
+  flights.forEach(flight => {
+    if (flight.operator) {
+      operatorSet.add(flight.operator);
+    }
+  });
+  
+  return Array.from(operatorSet).sort();
+}
+
+// Use in a filter dropdown
+const operators = getAvailableOperators(flights);
+// Result: ["American Airlines", "Delta Air Lines", "United Airlines", ...]
+```
+
+## Source Location
+
+`~/workspace/source/src/app/features/flights/models/flight-filters.ts`

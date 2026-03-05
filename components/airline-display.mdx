@@ -1,0 +1,128 @@
+---
+title: 'Airline Display Component'
+description: 'Display airline logos or fallback text based on operator ICAO code'
+---
+
+## Overview
+
+The `AirlineDisplayComponent` intelligently displays airline branding by showing either an airline logo image (when available) or fallback text. It checks if a logo exists for the given ICAO code and automatically handles cases where logos are unavailable.
+
+**Selector:** `app-airline-display`
+
+**Location:** `src/app/features/flights/ui/airline-display/airline-display.component.ts:7`
+
+## Component API
+
+### Inputs
+
+<ParamField path="operator" type="string | null" default="null">
+  The airline operator name (e.g., "Iberia", "Ryanair"). Used as fallback text when no logo is available and displayed in the tooltip.
+</ParamField>
+
+<ParamField path="operatorIcao" type="string | null" default="null">
+  The ICAO code of the airline operator (e.g., "IBE", "RYR"). Used to lookup the corresponding airline logo from the assets directory.
+</ParamField>
+
+<ParamField path="width" type="number" default="64">
+  Width of the airline logo image in pixels.
+</ParamField>
+
+<ParamField path="height" type="number" default="64">
+  Height of the airline logo image in pixels.
+</ParamField>
+
+## Display Logic
+
+The component uses the `getAirlineDisplay()` method to determine what to display:
+
+1. **Logo Mode**: If the `operatorIcao` (converted to uppercase) exists in `logos-list.json`, returns:
+   ```typescript
+   {
+     type: 'logo',
+     content: '/assets/airlines/logos/{ICAO}.png'
+   }
+   ```
+
+2. **Text Mode**: If no logo is found, returns:
+   ```typescript
+   {
+     type: 'text',
+     content: operator || 'N/A'
+   }
+   ```
+
+**Source:** `src/app/features/flights/ui/airline-display/airline-display.component.ts:19-32`
+
+## Template Behavior
+
+The component template (`airline-display.component.html:1-9`) conditionally renders:
+
+- **When logo exists**: Displays an `<img>` element with:
+  - Dynamic `src` pointing to the airline logo
+  - Configurable `width` and `height`
+  - Material tooltip showing the operator name
+  - Lazy loading enabled for performance
+  - Proper `alt` text for accessibility
+
+- **When logo unavailable**: Displays the operator name as plain text (or "N/A" if operator is null)
+
+## Usage Examples
+
+### Basic Usage (Default Size)
+
+```html
+<!-- From flight-detail-panel.component.html:53 -->
+<app-airline-display 
+  [operatorIcao]="flight.operatorIcao" 
+  [operator]="flight.operator">
+</app-airline-display>
+```
+
+This renders a 64x64px airline display (default dimensions).
+
+### Custom Size
+
+```html
+<!-- From flight-detail-bottom-sheet.component.html:44-45 -->
+<app-airline-display 
+  [operatorIcao]="flight.operatorIcao" 
+  [operator]="flight.operator" 
+  [width]="118"
+  [height]="118">
+</app-airline-display>
+```
+
+This renders a larger 118x118px airline display for the bottom sheet detail view.
+
+### Handling Missing Data
+
+```html
+<!-- If operatorIcao is null or not in logos-list -->
+<app-airline-display 
+  [operatorIcao]="null" 
+  [operator]="'Private Operator'">
+</app-airline-display>
+<!-- Displays: "Private Operator" as text -->
+
+<!-- If both are null -->
+<app-airline-display 
+  [operatorIcao]="null" 
+  [operator]="null">
+</app-airline-display>
+<!-- Displays: "N/A" as text -->
+```
+
+## Dependencies
+
+- **CommonModule**: For structural directives (`@if`)
+- **MatTooltipModule**: For showing operator name on hover
+- **Assets**: Requires `public/assets/airlines/logos-list.json` and corresponding logo PNG files
+
+## Features
+
+- Automatic logo detection based on ICAO code
+- Graceful fallback to text display
+- Configurable dimensions
+- Material tooltip integration
+- Lazy loading for logo images
+- Accessibility-friendly with proper alt text
