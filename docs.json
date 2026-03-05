@@ -64,7 +64,8 @@
               "components/flights-shell",
               "components/flights-map",
               "components/flights-list",
-              "components/flight-detail-panel"
+              "components/flight-detail-panel",
+              "components/flight-detail-bottom-sheet"
             ]
           },
           {
@@ -85,7 +86,9 @@
             "pages": [
               "api/flights-api-service",
               "api/flights-store-service",
-              "api/map-marker-service"
+              "api/map-marker-service",
+              "api/viewport-service",
+              "api/api-config-service"
             ]
           },
           {

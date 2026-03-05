@@ -1,0 +1,163 @@
+---
+title: 'FlightDetailBottomSheetComponent'
+description: 'Mobile bottom sheet for displaying flight details'
+icon: 'mobile-screen'
+---
+
+# FlightDetailBottomSheetComponent
+
+The `FlightDetailBottomSheetComponent` provides a mobile-optimized bottom sheet interface for displaying detailed flight information. It's used on mobile and tablet viewports as an alternative to the desktop `FlightDetailPanelComponent`.
+
+## Overview
+
+This component appears as a Material Design bottom sheet that slides up from the bottom of the screen when a flight is selected on mobile devices. It displays comprehensive flight data including operator information, aircraft details, position, and performance metrics.
+
+<Info>
+The component automatically adjusts its grid layout based on viewport size (mobile vs tablet) for optimal readability.
+</Info>
+
+## Component API
+
+### Selector
+```typescript
+app-flight-detail-bottom-sheet
+```
+
+### Inputs
+
+The component receives data through Angular Material's `MAT_BOTTOM_SHEET_DATA` injection token:
+
+<ParamField path="flightId" type="string" required>
+  The ICAO24 identifier of the flight to display
+</ParamField>
+
+<ParamField path="photo" type="AircraftPhoto | null">
+  Optional aircraft photo data including thumbnail URL, photographer, and attribution
+</ParamField>
+
+### Outputs
+
+The component dismisses itself by calling `MatBottomSheetRef.dismiss()`. The parent component can subscribe to the `afterDismissed()` observable to detect when the sheet closes.
+
+### Public Methods
+
+<ParamField path="close()" type="void">
+  Closes the bottom sheet and dismisses it with reason `'user'`
+</ParamField>
+
+## Properties
+
+<ResponseField name="flight" type="Signal<Flight | null>">
+  Computed signal that looks up the current flight from the store by `flightId`
+</ResponseField>
+
+<ResponseField name="opertorInfoGridRowHeight" type="Signal<string>">
+  Computed grid row height for operator section:
+  - Mobile: `'3:1'`
+  - Tablet: `'5:1'`
+</ResponseField>
+
+<ResponseField name="aircraftInfoGridRowHeight" type="Signal<string>">
+  Computed grid row height for aircraft info section:
+  - Mobile: `'10:11'`
+  - Tablet: `'5:3'`
+</ResponseField>
+
+<ResponseField name="flightInfoGridRowHeight" type="Signal<string>">
+  Computed grid row height for flight info section:
+  - Mobile: `'11:12'`
+  - Tablet: `'6:4'`
+</ResponseField>
+
+## Usage
+
+The component is opened by `FlightsShellComponent` when a flight is selected on mobile/tablet viewports:
+
+```typescript FlightsShellComponent usage
+private openBottomSheet(flightId: string, photo: AircraftPhoto | null): void {
+  this.bottomSheetRef = this.bottomSheet.open(FlightDetailBottomSheetComponent, {
+    data: { flightId, photo },
+    hasBackdrop: false,
+    ariaLabel: `Flight details ${flightId}`,
+    panelClass: 'flight-detail-sheet',
+  });
+
+  this.bottomSheetRef.afterDismissed()
+    .pipe(take(1))
+    .subscribe((reason?: SheetCloseReason) => {
+      if (reason === 'user' || reason == null) {
+        this.store.clearSelection();
+      }
+    });
+}
+```
+
+## Layout Structure
+
+The bottom sheet displays flight data in a responsive grid layout:
+
+### Operator Section
+- Airline logo or operator name
+- Flight callsign
+- Origin country
+
+### Aircraft Section
+- Aircraft photo (if available)
+- Model and type code
+- Registration number
+- Owner information
+
+### Position & Flight Data
+- Current position (latitude/longitude)
+- Altitude (barometric and geometric)
+- Velocity and heading
+- Vertical rate
+- Squawk code
+- On-ground status indicator
+
+## Responsive Behavior
+
+The component uses `ViewportService` to detect device type and adjusts its grid layout accordingly:
+
+| Viewport | Grid Ratio | Behavior |
+|----------|------------|----------|
+| **Mobile** | Vertical layout | Sections stack vertically with tall aspect ratios |
+| **Tablet** | Mixed layout | More compact with adjusted proportions |
+
+## Integration with Store
+
+The component integrates with `FlightsStoreService` to:
+- Look up flight data by ICAO24 ID
+- React to flight data updates in real-time
+- Access the complete flights array through signals
+
+```typescript Signal-based lookup
+readonly flight = computed<Flight | null>(() =>
+  this.store.flights().find(f => f.icao24 === this.data.flightId) ?? null
+);
+```
+
+## Close Behavior
+
+The bottom sheet can be closed:
+1. **User initiated**: Tap close button → dismisses with `'user'` reason
+2. **Flight switch**: When selecting a different flight → dismisses with `'switch-flight'` reason
+3. **Viewport change**: When resizing to desktop → dismisses with `'viewport-change'` reason
+
+## Dependencies
+
+```typescript
+import { FlightDetailBottomSheetComponent } from './features/flights/flight-detail-bottom-sheet/flight-detail-bottom-sheet.component';
+import { MAT_BOTTOM_SHEET_DATA, MatBottomSheetRef, MatBottomSheet } from '@angular/material/bottom-sheet';
+```
+
+## Related Components
+
+- [FlightDetailPanelComponent](/components/flight-detail-panel) - Desktop equivalent
+- [FlightsShellComponent](/components/flights-shell) - Opens this bottom sheet
+- [AirlineDisplayComponent](/components/airline-display) - Displays airline logos
+- [FlightStatusLedComponent](/components/flight-status-led) - Shows flight status indicator
+
+## Source
+
+`~/workspace/source/src/app/features/flights/flight-detail-bottom-sheet/flight-detail-bottom-sheet.component.ts`

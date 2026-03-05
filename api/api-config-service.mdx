@@ -1,0 +1,199 @@
+---
+title: 'ApiConfigService'
+description: 'API configuration management service'
+icon: 'gear'
+---
+
+# ApiConfigService
+
+The `ApiConfigService` provides centralized configuration management for API endpoints and feature flags. It reads configuration from Angular environment files and exposes them through a type-safe interface.
+
+## Overview
+
+This core service acts as a single source of truth for API configuration throughout the application. It encapsulates environment-specific settings and provides a clean interface for accessing the backend API base URL.
+
+<Info>
+The service reads from Angular's `environment` object, which switches between `environment.ts` (development) and `environment.production.ts` (production) during the build process.
+</Info>
+
+## Service API
+
+### Provided In
+```typescript
+@Injectable({ providedIn: 'root' })
+```
+
+The service is provided at the root level and available as a singleton.
+
+## Public Properties
+
+<ResponseField name="apiBaseUrl" type="string (getter)">
+  Returns the base URL for all API requests
+  
+  **Example values:**
+  - Development: `http://localhost:8080/api`
+  - Production: `https://api.airtracker.example.com`
+</ResponseField>
+
+## Configuration Interface
+
+```typescript ApiConfig interface
+export interface ApiConfig {
+  apiBaseUrl: string;
+  features: {
+    enableFavorites: boolean;
+    enableStats: boolean;
+  };
+  production: boolean;
+}
+```
+
+### Configuration Properties
+
+<ResponseField name="apiBaseUrl" type="string">
+  Base URL for backend API requests
+</ResponseField>
+
+<ResponseField name="features" type="object">
+  Feature flags for enabling/disabling application features
+  
+  <Expandable title="Feature flags">
+    <ResponseField name="enableFavorites" type="boolean">
+      Enable favorite flights feature (future enhancement)
+    </ResponseField>
+    
+    <ResponseField name="enableStats" type="boolean">
+      Enable flight statistics feature (future enhancement)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="production" type="boolean">
+  Indicates whether the app is running in production mode
+</ResponseField>
+
+## Usage Examples
+
+### Accessing API Base URL
+
+```typescript FlightsApiService usage
+import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { ApiConfigService } from '../../../core/services/api-config.service';
+
+@Injectable({ providedIn: 'root' })
+export class FlightsApiService {
+  private readonly http = inject(HttpClient);
+  private readonly apiConfig = inject(ApiConfigService);
+  
+  private readonly baseUrl = this.apiConfig.apiBaseUrl;
+  
+  getLiveFlights() {
+    return this.http.get(`${this.baseUrl}/flights/live`);
+  }
+}
+```
+
+### Environment Configuration
+
+The service reads from environment files:
+
+```typescript environment.development.ts
+export const environment = {
+  production: false,
+  apiBaseUrl: 'http://localhost:8080/api',
+  features: {
+    enableFavorites: false,
+    enableStats: false
+  }
+};
+```
+
+```typescript environment.production.ts
+export const environment = {
+  production: true,
+  apiBaseUrl: 'https://api.airtracker.example.com',
+  features: {
+    enableFavorites: true,
+    enableStats: true
+  }
+};
+```
+
+## Implementation Details
+
+The service stores a private readonly configuration object initialized from the environment:
+
+```typescript Internal structure
+private readonly config: ApiConfig = {
+  apiBaseUrl: environment.apiBaseUrl,
+  features: environment.features,
+  production: environment.production,
+};
+
+get apiBaseUrl(): string {
+  return this.config.apiBaseUrl;
+}
+```
+
+## Real-World Usage
+
+### FlightsApiService
+
+The API service uses `ApiConfigService` to construct endpoint URLs:
+
+```typescript
+private readonly baseUrl = this.apiConfig.apiBaseUrl;
+
+getLiveFlights(): Observable<FlightResponseDto> {
+  return this.http.get<FlightResponseDto>(`${this.baseUrl}/flights/live`);
+}
+
+getPhotosByIcao24(icao24: string): Observable<AircraftPhotoDto> {
+  return this.http.get<AircraftPhotoDto>(`${this.baseUrl}/aircraft-photos/${icao24}`);
+}
+```
+
+## Configuration Management
+
+### Development Environment
+```typescript
+apiBaseUrl: 'http://localhost:8080/api'
+```
+- Points to local backend server
+- Enables development-specific debugging
+- Features may be disabled for testing
+
+### Production Environment
+```typescript
+apiBaseUrl: 'https://api.airtracker.example.com'
+```
+- Points to production API
+- Optimized builds with AOT compilation
+- All features enabled
+
+## Benefits
+
+- **Centralized configuration**: Single place to manage API settings
+- **Type safety**: `ApiConfig` interface prevents configuration errors
+- **Environment awareness**: Automatically switches between dev/prod configs
+- **Easy mocking**: Can be easily replaced in tests
+- **Extensible**: Feature flags allow gradual feature rollout
+
+## Future Enhancements
+
+The `features` object supports future functionality:
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| `enableFavorites` | Planned | Save and manage favorite flights |
+| `enableStats` | Planned | View flight statistics and analytics |
+
+## Related
+
+- [FlightsApiService](/api/flights-api-service) - Primary consumer of this service
+- [Architecture: API Integration](/architecture/api-integration) - How API configuration fits into the architecture
+
+## Source
+
+`~/workspace/source/src/app/core/services/api-config.service.ts`

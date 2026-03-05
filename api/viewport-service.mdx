@@ -1,0 +1,183 @@
+---
+title: 'ViewportService'
+description: 'Responsive breakpoint detection service'
+icon: 'mobile'
+---
+
+# ViewportService
+
+The `ViewportService` provides reactive viewport breakpoint detection using Angular CDK's `BreakpointObserver`. It exposes signal-based properties for determining the current device type (mobile, tablet, or desktop) and enables responsive UI behavior throughout the application.
+
+## Overview
+
+This core service monitors viewport size changes and provides real-time signals that components can use to adapt their layout and behavior. It's used extensively in Air Tracker to switch between desktop panels and mobile bottom sheets, adjust grid layouts, and optimize UI for different screen sizes.
+
+<Info>
+The service uses Angular CDK's predefined breakpoints (`Breakpoints.HandsetPortrait`, `Breakpoints.TabletPortrait`, etc.) for consistent responsive behavior.
+</Info>
+
+## Service API
+
+### Provided In
+```typescript
+@Injectable({ providedIn: 'root' })
+```
+
+The service is provided at the root level and available as a singleton throughout the application.
+
+## Public Properties (Signals)
+
+<ResponseField name="isMobile" type="Signal<boolean>">
+  Returns `true` when the viewport matches handset (mobile) breakpoints, both portrait and landscape orientations
+</ResponseField>
+
+<ResponseField name="isTablet" type="Signal<boolean>">
+  Returns `true` when the viewport matches tablet breakpoints, both portrait and landscape orientations
+</ResponseField>
+
+<ResponseField name="isDesktop" type="Signal<boolean>">
+  Returns `true` when the viewport is neither mobile nor tablet (fallback for larger screens)
+</ResponseField>
+
+<ResponseField name="mode" type="Signal<ViewportMode>">
+  Returns the current viewport mode as a string: `'mobile'`, `'tablet'`, or `'desktop'`
+  
+  Computed based on the priority:
+  1. If `isMobile()` is true → `'mobile'`
+  2. Else if `isTablet()` is true → `'tablet'`
+  3. Otherwise → `'desktop'`
+</ResponseField>
+
+## Types
+
+```typescript
+export type ViewportMode = 'mobile' | 'tablet' | 'desktop';
+```
+
+## Implementation Details
+
+The service uses Angular CDK's `BreakpointObserver` to monitor viewport changes:
+
+```typescript Implementation
+private readonly mobileRaw = toSignal(
+  this.bp.observe([Breakpoints.HandsetPortrait, Breakpoints.HandsetLandscape]).pipe(
+    map(r => r.matches),
+    startWith(false),
+    distinctUntilChanged()
+  ),
+  { initialValue: false }
+);
+
+readonly isMobile = computed(() => this.mobileRaw());
+```
+
+### Breakpoint Mapping
+
+| Signal | CDK Breakpoints |
+|--------|----------------|
+| `isMobile` | `HandsetPortrait`, `HandsetLandscape` |
+| `isTablet` | `TabletPortrait`, `TabletLandscape` |
+| `isDesktop` | Computed as `!isMobile && !isTablet` |
+
+## Usage Examples
+
+### Conditional Rendering Based on Viewport
+
+```typescript Component with viewport-based logic
+import { Component, inject } from '@angular/core';
+import { ViewportService } from './core/services/viewport.service';
+
+@Component({
+  selector: 'app-example',
+  template: `
+    @if (viewport.isDesktop()) {
+      <app-desktop-panel />
+    } @else {
+      <app-mobile-sheet />
+    }
+  `
+})
+export class ExampleComponent {
+  protected readonly viewport = inject(ViewportService);
+}
+```
+
+### Responsive Grid Layouts
+
+```typescript Dynamic grid row heights
+readonly gridRowHeight = computed(() => {
+  if (this.viewport.isMobile()) return '3:1';
+  if (this.viewport.isTablet()) return '5:3';
+  return '5:1';
+});
+```
+
+### Mode-Based Logic
+
+```typescript Using mode signal
+readonly displayMode = computed(() => {
+  const mode = this.viewport.mode();
+  switch (mode) {
+    case 'mobile':
+      return 'compact';
+    case 'tablet':
+      return 'medium';
+    case 'desktop':
+      return 'full';
+  }
+});
+```
+
+## Real-World Usage in Air Tracker
+
+### FlightsShellComponent
+
+Switches between desktop overlay panel and mobile bottom sheet:
+
+```typescript FlightsShellComponent
+if (this.viewport.isDesktop()) {
+  this.openOverlayPanel(icao24, photo);
+} else {
+  this.openBottomSheet(icao24, photo);
+}
+```
+
+### FlightDetailBottomSheetComponent
+
+Adjusts grid layout ratios based on device:
+
+```typescript FlightDetailBottomSheetComponent
+readonly aircraftInfoGridRowHeight = computed(() => { 
+  if (this.viewport.isTablet()) return '5:3';
+  if (this.viewport.isMobile()) return '10:11';
+  return '5:1'; 
+});
+```
+
+### PollingStatusComponent
+
+Displays different polling information based on viewport:
+
+```typescript PollingStatusComponent
+<div [class.mobile]="viewport.isMobile()" [class.desktop]="viewport.isDesktop()">
+  <!-- Status content adapts to device size -->
+</div>
+```
+
+## Benefits
+
+- **Reactive**: Uses signals for automatic change detection
+- **Performance**: Uses `distinctUntilChanged()` to minimize unnecessary updates
+- **Type-safe**: Provides `ViewportMode` type for compile-time checking
+- **Singleton**: Shares breakpoint observations across all components
+- **Standard breakpoints**: Leverages Angular CDK's well-tested breakpoint definitions
+
+## Related
+
+- [FlightsShellComponent](/components/flights-shell) - Uses viewport service to switch between UI modes
+- [FlightDetailBottomSheetComponent](/components/flight-detail-bottom-sheet) - Adjusts layout based on viewport
+- [Angular CDK Layout](https://material.angular.io/cdk/layout/overview) - Underlying breakpoint detection
+
+## Source
+
+`~/workspace/source/src/app/core/services/viewport.service.ts`

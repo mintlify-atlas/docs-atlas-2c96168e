@@ -1,0 +1,584 @@
+{
+  "metadata": {
+    "generated": "2026-03-05",
+    "description": "Complete frontend surface area inventory for Air Tracker Angular application",
+    "sourceDirectory": "~/workspace/source/src/app/"
+  },
+  "components": [
+    {
+      "name": "App",
+      "filePath": "src/app/app.ts",
+      "selector": "app-root",
+      "inputs": [],
+      "outputs": [],
+      "publicMethods": [],
+      "publicProperties": [
+        "title: WritableSignal<string>"
+      ]
+    },
+    {
+      "name": "FlightsShellComponent",
+      "filePath": "src/app/features/flights/flights-shell/flights-shell.component.ts",
+      "selector": "app-flights-shell",
+      "inputs": [],
+      "outputs": [],
+      "publicMethods": [],
+      "publicProperties": [
+        "store: FlightsStoreService",
+        "viewport: ViewportService"
+      ]
+    },
+    {
+      "name": "FlightsMapComponent",
+      "filePath": "src/app/features/flights/flights-map/flights-map.component.ts",
+      "selector": "app-flights-map",
+      "inputs": [
+        {
+          "name": "flights",
+          "type": "Flight[]"
+        }
+      ],
+      "outputs": [],
+      "publicMethods": [
+        "changeBase(name: BaseLayerKey): void",
+        "clearSelection(): void"
+      ],
+      "publicProperties": []
+    },
+    {
+      "name": "FlightsListComponent",
+      "filePath": "src/app/features/flights/flights-list/flights-list.component.ts",
+      "selector": "app-flights-list",
+      "inputs": [],
+      "outputs": [],
+      "publicMethods": [
+        "handleRowClicked(flightId: string): void"
+      ],
+      "publicProperties": [
+        "store: FlightsStoreService",
+        "displayedColumns: string[]",
+        "dataSource: MatTableDataSource<Flight>"
+      ]
+    },
+    {
+      "name": "FlightDetailPanelComponent",
+      "filePath": "src/app/features/flights/flight-detail-panel/flight-detail-panel.component.ts",
+      "selector": "app-flight-panel",
+      "inputs": [
+        {
+          "name": "flightId",
+          "type": "string"
+        },
+        {
+          "name": "photo",
+          "type": "AircraftPhoto | null"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "closed",
+          "type": "void"
+        }
+      ],
+      "publicMethods": [
+        "close(): void"
+      ],
+      "publicProperties": [
+        "store: FlightsStoreService",
+        "flight: Signal<Flight | null>"
+      ]
+    },
+    {
+      "name": "FlightDetailBottomSheetComponent",
+      "filePath": "src/app/features/flights/flight-detail-bottom-sheet/flight-detail-bottom-sheet.component.ts",
+      "selector": "app-flight-detail-bottom-sheet",
+      "inputs": [],
+      "outputs": [],
+      "publicMethods": [
+        "close(): void"
+      ],
+      "publicProperties": [
+        "store: FlightsStoreService",
+        "viewport: ViewportService",
+        "data: FlightDetailBottomSheetData",
+        "flight: Signal<Flight | null>",
+        "opertorInfoGridRowHeight: Signal<string>",
+        "aircraftInfoGridRowHeight: Signal<string>",
+        "flightInfoGridRowHeight: Signal<string>"
+      ]
+    },
+    {
+      "name": "AirlineDisplayComponent",
+      "filePath": "src/app/features/flights/ui/airline-display/airline-display.component.ts",
+      "selector": "app-airline-display",
+      "inputs": [
+        {
+          "name": "operator",
+          "type": "string | null"
+        },
+        {
+          "name": "operatorIcao",
+          "type": "string | null"
+        },
+        {
+          "name": "width",
+          "type": "number"
+        },
+        {
+          "name": "height",
+          "type": "number"
+        }
+      ],
+      "outputs": [],
+      "publicMethods": [
+        "getAirlineDisplay(operatorIcao: string | null, operator: string | null): { type: 'logo' | 'text'; content: string }"
+      ],
+      "publicProperties": []
+    },
+    {
+      "name": "FlightStatusLedComponent",
+      "filePath": "src/app/features/flights/ui/flight-status-led/flight-status-led.component.ts",
+      "selector": "app-flight-status-led",
+      "inputs": [
+        {
+          "name": "onGround",
+          "type": "boolean"
+        }
+      ],
+      "outputs": [],
+      "publicMethods": [],
+      "publicProperties": []
+    },
+    {
+      "name": "FlightsFilterMenuComponent",
+      "filePath": "src/app/features/flights/ui/flights-filter-menu/flights-filter-menu.component.ts",
+      "selector": "app-flights-filter-menu",
+      "inputs": [],
+      "outputs": [],
+      "publicMethods": [],
+      "publicProperties": [
+        "store: FlightsStoreService",
+        "filterForm: FormGroup"
+      ]
+    },
+    {
+      "name": "LoadingOverlayComponent",
+      "filePath": "src/app/shared/components/loading-overlay/loading-overlay.component.ts",
+      "selector": "app-loading-overlay",
+      "inputs": [],
+      "outputs": [],
+      "publicMethods": [],
+      "publicProperties": []
+    },
+    {
+      "name": "LoadingSpinnerComponent",
+      "filePath": "src/app/shared/components/loading-spinner/loading-spinner.component.ts",
+      "selector": "app-loading-spinner",
+      "inputs": [],
+      "outputs": [],
+      "publicMethods": [],
+      "publicProperties": []
+    },
+    {
+      "name": "LogoComponent",
+      "filePath": "src/app/shared/components/logo/logo.component.ts",
+      "selector": "app-logo",
+      "inputs": [
+        {
+          "name": "showText",
+          "type": "boolean"
+        },
+        {
+          "name": "showLiveBadge",
+          "type": "boolean"
+        },
+        {
+          "name": "logoSize",
+          "type": "string"
+        },
+        {
+          "name": "textSize",
+          "type": "string"
+        },
+        {
+          "name": "badgeSize",
+          "type": "string"
+        },
+        {
+          "name": "textGap",
+          "type": "string"
+        }
+      ],
+      "outputs": [],
+      "publicMethods": [],
+      "publicProperties": []
+    },
+    {
+      "name": "PollingStatusComponent",
+      "filePath": "src/app/shared/components/polling-status/polling-status.component.ts",
+      "selector": "app-polling-status",
+      "inputs": [
+        {
+          "name": "lastUpdate",
+          "type": "Date | null"
+        },
+        {
+          "name": "nextUpdateAtMs",
+          "type": "number | null"
+        },
+        {
+          "name": "intervalMs",
+          "type": "number"
+        },
+        {
+          "name": "cacheAgeMs",
+          "type": "number"
+        },
+        {
+          "name": "loading",
+          "type": "boolean"
+        },
+        {
+          "name": "error",
+          "type": "string | null"
+        }
+      ],
+      "outputs": [],
+      "publicMethods": [],
+      "publicProperties": [
+        "viewport: ViewportService",
+        "remainingMs: Signal<number | null>",
+        "remainingSec: Signal<number | null>",
+        "ageSec: Signal<number>",
+        "progressValue: Signal<number | null>"
+      ]
+    },
+    {
+      "name": "ServerErrorOverlayComponent",
+      "filePath": "src/app/shared/components/server-error-overlay/server-error-overlay.component.ts",
+      "selector": "app-server-error-overlay",
+      "inputs": [],
+      "outputs": [],
+      "publicMethods": [],
+      "publicProperties": []
+    },
+    {
+      "name": "MainLayoutComponent",
+      "filePath": "src/app/shared/ui/layout/main-layout/main-layout.component.ts",
+      "selector": "app-main-layout",
+      "inputs": [],
+      "outputs": [],
+      "publicMethods": [],
+      "publicProperties": [
+        "store: FlightsStoreService"
+      ]
+    }
+  ],
+  "services": [
+    {
+      "name": "ApiConfigService",
+      "filePath": "src/app/core/services/api-config.service.ts",
+      "publicMethods": [],
+      "publicProperties": [
+        "apiBaseUrl: string (getter)"
+      ],
+      "providedIn": "root"
+    },
+    {
+      "name": "ViewportService",
+      "filePath": "src/app/core/services/viewport.service.ts",
+      "publicMethods": [],
+      "publicProperties": [
+        "isMobile: Signal<boolean>",
+        "isTablet: Signal<boolean>",
+        "isDesktop: Signal<boolean>",
+        "mode: Signal<ViewportMode>"
+      ],
+      "providedIn": "root"
+    },
+    {
+      "name": "FlightsApiService",
+      "filePath": "src/app/features/flights/services/flights-api.service.ts",
+      "publicMethods": [
+        "getLiveFlights(): Observable<FlightResponseDto>",
+        "getPhotosByIcao24(icao24: string): Observable<AircraftPhotoDto>"
+      ],
+      "publicProperties": [],
+      "providedIn": "root"
+    },
+    {
+      "name": "FlightsStoreService",
+      "filePath": "src/app/features/flights/services/flights-store.service.ts",
+      "publicMethods": [
+        "updateFilters(newFilters: Partial<FlightFilters>): void",
+        "setSelectedFlightId(id: string | null): void",
+        "clearSelection(): void",
+        "startSmartPolling(): void",
+        "stopPolling(): void"
+      ],
+      "publicProperties": [
+        "flights: Signal<Flight[]>",
+        "selectedFlightId: Signal<string | null>",
+        "loading: Signal<boolean>",
+        "error: Signal<string | null>",
+        "warning: Signal<string | null>",
+        "lastUpdated: Signal<Date | null>",
+        "cacheAgeMs: Signal<number>",
+        "nextUpdateInMs: Signal<number>",
+        "nextUpdateAtMs: Signal<number | null>",
+        "currentPollingIntervalMs: Signal<number>",
+        "operatorList: Signal<string[]>",
+        "filteredFlights: Signal<Flight[]>"
+      ],
+      "providedIn": "root"
+    },
+    {
+      "name": "MapMarkerService",
+      "filePath": "src/app/features/flights/services/map-marker.service.ts",
+      "publicMethods": [
+        "makePlaneIcon(flight: Flight, selected: boolean): L.DivIcon",
+        "updateMarkers(flights: Flight[], markersLayer: L.LayerGroup): void",
+        "updateIcons(flights: Flight[], selectedId: string | null): void"
+      ],
+      "publicProperties": [
+        "store: FlightsStoreService"
+      ],
+      "providedIn": "root"
+    }
+  ],
+  "models": [
+    {
+      "name": "Flight",
+      "filePath": "src/app/features/flights/models/flight.model.ts",
+      "type": "interface",
+      "properties": [
+        { "name": "icao24", "type": "string" },
+        { "name": "callsign", "type": "string | null" },
+        { "name": "originCountry", "type": "string" },
+        { "name": "timePosition", "type": "number | null" },
+        { "name": "lastContact", "type": "number" },
+        { "name": "latitude", "type": "number | null" },
+        { "name": "longitude", "type": "number | null" },
+        { "name": "altitudeBaro", "type": "number | null" },
+        { "name": "altitudeGeo", "type": "number | null" },
+        { "name": "heading", "type": "number | null" },
+        { "name": "velocity", "type": "number | null" },
+        { "name": "onGround", "type": "boolean" },
+        { "name": "category", "type": "string | null" },
+        { "name": "model", "type": "string | null" },
+        { "name": "operator", "type": "string | null" },
+        { "name": "operatorIcao", "type": "string | null" },
+        { "name": "owner", "type": "string | null" },
+        { "name": "typecode", "type": "string | null" },
+        { "name": "registration", "type": "string | null" },
+        { "name": "verticalRate", "type": "number | null" },
+        { "name": "squawk", "type": "string | null" },
+        { "name": "spi", "type": "boolean" }
+      ],
+      "exports": [
+        "mapFlightDtoToFlight(dto: FlightDto): Flight"
+      ]
+    },
+    {
+      "name": "AircraftPhoto",
+      "filePath": "src/app/features/flights/models/aircraft-photo.model.ts",
+      "type": "interface",
+      "properties": [
+        { "name": "thumbnailUrl", "type": "string" },
+        { "name": "largeUrl", "type": "string" },
+        { "name": "link", "type": "string" },
+        { "name": "photographer", "type": "string" },
+        { "name": "attribution", "type": "string" }
+      ],
+      "exports": [
+        "fromAircraftPhotoDto(dto: AircraftPhotoDto): AircraftPhoto"
+      ]
+    },
+    {
+      "name": "FlightFilters",
+      "filePath": "src/app/features/flights/models/flight-filters.ts",
+      "type": "interface",
+      "properties": [
+        { "name": "operator", "type": "string | null" },
+        { "name": "onGround", "type": "'all' | 'flying' | 'onGround'" }
+      ]
+    },
+    {
+      "name": "FlightDetailBottomSheetData",
+      "filePath": "src/app/features/flights/models/flight-detail-bottomsheet-data.ts",
+      "type": "interface",
+      "properties": [
+        { "name": "flightId", "type": "string" },
+        { "name": "photo", "type": "AircraftPhoto | null" }
+      ]
+    },
+    {
+      "name": "SheetCloseReason",
+      "filePath": "src/app/features/flights/models/sheet-close-reason.type.ts",
+      "type": "type",
+      "properties": [],
+      "definition": "'user' | 'switch-flight' | 'viewport-change'"
+    },
+    {
+      "name": "FlightResponseDto",
+      "filePath": "src/app/shared/models/flight.dto.ts",
+      "type": "interface",
+      "properties": [
+        { "name": "time", "type": "number" },
+        { "name": "flights", "type": "FlightDto[]" },
+        { "name": "cacheAgeMs", "type": "number" },
+        { "name": "pollingIntervalMs", "type": "number" },
+        { "name": "nextUpdateInMs", "type": "number" }
+      ]
+    },
+    {
+      "name": "FlightDto",
+      "filePath": "src/app/shared/models/flight.dto.ts",
+      "type": "interface",
+      "properties": [
+        { "name": "icao24", "type": "string" },
+        { "name": "callsign", "type": "string | null" },
+        { "name": "originCountry", "type": "string" },
+        { "name": "timePosition", "type": "number | null" },
+        { "name": "lastContact", "type": "number" },
+        { "name": "latitude", "type": "number | null" },
+        { "name": "longitude", "type": "number | null" },
+        { "name": "altitudeBaro", "type": "number | null" },
+        { "name": "altitudeGeo", "type": "number | null" },
+        { "name": "heading", "type": "number | null" },
+        { "name": "velocity", "type": "number | null" },
+        { "name": "onGround", "type": "boolean" },
+        { "name": "category", "type": "string | null" },
+        { "name": "model", "type": "string | null" },
+        { "name": "operator", "type": "string | null" },
+        { "name": "operatorIcao", "type": "string | null" },
+        { "name": "owner", "type": "string | null" },
+        { "name": "typecode", "type": "string | null" },
+        { "name": "registration", "type": "string | null" },
+        { "name": "verticalRate", "type": "number | null" },
+        { "name": "squawk", "type": "string | null" },
+        { "name": "spi", "type": "boolean" }
+      ]
+    },
+    {
+      "name": "AircraftPhotoDto",
+      "filePath": "src/app/shared/models/aircraft-photo.dto.ts",
+      "type": "interface",
+      "properties": [
+        { "name": "thumbnailUrl", "type": "string" },
+        { "name": "largeUrl", "type": "string" },
+        { "name": "link", "type": "string" },
+        { "name": "photographer", "type": "string" },
+        { "name": "attribution", "type": "string" }
+      ]
+    },
+    {
+      "name": "ApiConfig",
+      "filePath": "src/app/core/services/api-config.service.ts",
+      "type": "interface",
+      "properties": [
+        { "name": "apiBaseUrl", "type": "string" },
+        { "name": "features", "type": "{ enableFavorites: boolean; enableStats: boolean; }" },
+        { "name": "production", "type": "boolean" }
+      ]
+    },
+    {
+      "name": "ViewportMode",
+      "filePath": "src/app/core/services/viewport.service.ts",
+      "type": "type",
+      "properties": [],
+      "definition": "'mobile' | 'tablet' | 'desktop'"
+    }
+  ],
+  "pipes": [
+    {
+      "name": "UnitPipe",
+      "filePath": "src/app/shared/pipes/unit.pipe..ts",
+      "pipeName": "unit",
+      "transform": "transform(value: number | null | undefined, unit: string, fallback = 'N/A'): string"
+    },
+    {
+      "name": "msToKmhPipe",
+      "filePath": "src/app/shared/pipes/msToKmh.ts",
+      "pipeName": "msToKmh",
+      "transform": "transform(value: number | null): number"
+    }
+  ],
+  "constants": [
+    {
+      "name": "BASE_LAYERS",
+      "filePath": "src/app/features/flights/flights-map/flights-map.layers.ts",
+      "type": "Record<BaseLayerKey, L.TileLayer>",
+      "description": "Map base layers configuration for Leaflet",
+      "keys": [
+        "satellite",
+        "streets",
+        "dark",
+        "light"
+      ]
+    },
+    {
+      "name": "BASE_LAYER_KEYS",
+      "filePath": "src/app/features/flights/flights-map/flights-map.layers.ts",
+      "type": "readonly ['satellite', 'streets', 'dark', 'light']",
+      "description": "Available base layer keys"
+    },
+    {
+      "name": "BaseLayerKey",
+      "filePath": "src/app/features/flights/flights-map/flights-map.layers.ts",
+      "type": "type",
+      "description": "Union type of available base layer keys"
+    },
+    {
+      "name": "PLANE_SVG",
+      "filePath": "src/app/shared/constants/plane-svg.const.ts",
+      "type": "string",
+      "description": "SVG markup for plane icon on map"
+    }
+  ],
+  "routes": [
+    {
+      "path": "",
+      "component": "MainLayoutComponent",
+      "children": [
+        {
+          "path": "",
+          "pathMatch": "full",
+          "redirectTo": "flights"
+        },
+        {
+          "path": "flights",
+          "component": "FlightsShellComponent"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "totalComponents": 15,
+    "totalServices": 5,
+    "totalModels": 10,
+    "totalPipes": 2,
+    "totalConstants": 4,
+    "totalRoutes": 1,
+    "featureModules": [
+      "flights"
+    ],
+    "sharedComponents": [
+      "LoadingOverlayComponent",
+      "LoadingSpinnerComponent",
+      "LogoComponent",
+      "PollingStatusComponent",
+      "ServerErrorOverlayComponent"
+    ],
+    "flightComponents": [
+      "FlightsShellComponent",
+      "FlightsMapComponent",
+      "FlightsListComponent",
+      "FlightDetailPanelComponent",
+      "FlightDetailBottomSheetComponent",
+      "AirlineDisplayComponent",
+      "FlightStatusLedComponent",
+      "FlightsFilterMenuComponent"
+    ]
+  }
+}
